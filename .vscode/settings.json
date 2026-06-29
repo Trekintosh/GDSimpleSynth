@@ -94,5 +94,10 @@
     "setup.py":false
 },
   "files.eol": "\n",
-  "files.insertFinalNewline": true
+  "files.insertFinalNewline": true,
+  "clangd.arguments": [
+        "--query-driver=C:\\msys64\\mingw64\\bin\\g++.exe"
+    ]
 }
+
+
