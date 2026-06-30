@@ -2,5 +2,10 @@
 
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 
+[sub_resource type="AudioStreamGenerator" id="AudioStreamGenerator_ig7tw"]
+
 [node name="Main" type="Node2D" unique_id=222085205]
 script = ExtResource("1_ig7tw")
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=1223027107]
+stream = SubResource("AudioStreamGenerator_ig7tw")
