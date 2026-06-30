@@ -1,5 +1,6 @@
 #pragma once
 
+#include "simpleSynthPatch.hpp"
 #include "godot_cpp/classes/audio_stream_generator_playback.hpp"
 #include "godot_cpp/classes/node.hpp"
 #include "godot_cpp/classes/ref.hpp"
@@ -11,6 +12,10 @@ protected:
 public:
     godot::Ref<godot::AudioStreamGeneratorPlayback> myPlayback;
     void set_playback(const godot::Ref<godot::AudioStreamGeneratorPlayback> p);
-    void generateNoise();
+    void generateSound();
     void _process(double delta) override;
+    void set_patch(const godot::Ref<SimpleSynthPatch> newPatch);
+    godot::Ref<SimpleSynthPatch> get_patch() const;
+private:
+    godot::Ref<SimpleSynthPatch> myPatch;
 };

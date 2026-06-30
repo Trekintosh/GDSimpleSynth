@@ -3,9 +3,28 @@
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 
 [sub_resource type="AudioStreamGenerator" id="AudioStreamGenerator_ig7tw"]
+buffer_length = 0.1
+
+[sub_resource type="SynthADSR" id="SynthADSR_4bmhe"]
+Attack = 1.0
+Decay = 1.0
+Sustain = 1.0
+Release = 1.0
+
+[sub_resource type="SynthADSR" id="SynthADSR_u233w"]
+
+[sub_resource type="SynthNoiseOscillator" id="SynthNoiseOscillator_gh7dn"]
+
+[sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_u1av0"]
+"Amplitude ADSR" = SubResource("SynthADSR_4bmhe")
+"Frequency ADSR" = SubResource("SynthADSR_u233w")
+Oscillators = Array[SynthOscillator]([SubResource("SynthNoiseOscillator_gh7dn")])
 
 [node name="Main" type="Node2D" unique_id=222085205]
 script = ExtResource("1_ig7tw")
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=1223027107]
 stream = SubResource("AudioStreamGenerator_ig7tw")
+
+[node name="SimpleSynth" type="SimpleSynth" parent="." unique_id=1185326191]
+patch = SubResource("SimpleSynthPatch_u1av0")

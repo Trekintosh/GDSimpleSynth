@@ -1,0 +1,14 @@
+[gd_resource type="SimpleSynthPatch" format=3 uid="uid://qs27yhlibuaw"]
+
+[sub_resource type="SynthADSR" id="SynthADSR_5mtbq"]
+Decay = 0.0
+Sustain = 22050.0
+
+[sub_resource type="SynthADSR" id="SynthADSR_lkmll"]
+Attack = 56.0
+Decay = 0.0012698412
+Sustain = 22050.0
+
+[resource]
+"Amplitude ADSR" = SubResource("SynthADSR_5mtbq")
+"Frequency ADSR" = SubResource("SynthADSR_lkmll")
