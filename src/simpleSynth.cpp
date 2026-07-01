@@ -1,4 +1,5 @@
 #include "simpleSynth.hpp"
+#include "godot_cpp/classes/engine.hpp"
 #include "godot_cpp/classes/global_constants.hpp"
 #include "godot_cpp/core/object.hpp"
 #include "simpleSynthPatch.hpp"
@@ -8,9 +9,11 @@
 
 using namespace godot;
 
+
+
 void SimpleSynth::generateSound() 
 {
-    if(myPlayback.is_null()|myPatch.is_null()){
+    if(myPlayback.is_null()||myPatch.is_null()){
         return;
     }
     int availableFrames = myPlayback->get_frames_available();
@@ -25,7 +28,7 @@ void SimpleSynth::generateSound()
 
 void SimpleSynth::_process(double delta){
     generateSound();
-};
+}
 
 void SimpleSynth::set_patch(const Ref<SimpleSynthPatch> newPatch){
     myPatch = newPatch;

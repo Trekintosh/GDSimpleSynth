@@ -5,6 +5,9 @@
 #include "godot_cpp/classes/node.hpp"
 #include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/classes/wrapped.hpp"
+#include <thread>
+#include <atomic>
+
 class SimpleSynth: public godot::Node{
     GDCLASS(SimpleSynth, godot::Node)
 protected:

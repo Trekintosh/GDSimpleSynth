@@ -3,17 +3,18 @@
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 
 [sub_resource type="AudioStreamGenerator" id="AudioStreamGenerator_ig7tw"]
-buffer_length = 0.1
+buffer_length = 0.05
 
 [sub_resource type="SynthADSR" id="SynthADSR_4bmhe"]
-Attack = 1.0
-Decay = 1.0
-Sustain = 1.0
-Release = 1.0
+Attack = 0.05
+Decay = 0.1
+Sustain = 0.7
+Release = 0.5
 
 [sub_resource type="SynthADSR" id="SynthADSR_u233w"]
 
 [sub_resource type="SynthNoiseOscillator" id="SynthNoiseOscillator_gh7dn"]
+"Noise Mix (W,P,B)" = Vector3(0.6, 0.4, 0)
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_u1av0"]
 "Amplitude ADSR" = SubResource("SynthADSR_4bmhe")

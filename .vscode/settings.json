@@ -97,7 +97,8 @@
   "files.insertFinalNewline": true,
   "clangd.arguments": [
         "--query-driver=C:\\msys64\\mingw64\\bin\\g++.exe"
-    ]
+    ],
+    "cmake.ignoreCMakeListsMissing": true
 }
 
 
