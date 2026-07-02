@@ -109,10 +109,10 @@ public:
     void advanceStep(int currentStep);
 
     //Mandatory overrides
-    int get_loop_count() const{return total_notes;};
-    float get_playback_position() const {return 0.0f;};
-    void start(float p_from_pos = 0.0) {return;};
-    void stop(){return;}
+    int _get_loop_count() const override{return total_notes;};
+    double _get_playback_position() const override{return 0.0;};
+    void _start(double p_from_pos = 0.0) override{return;};
+    void _stop() override{return;}
 
 
 private:

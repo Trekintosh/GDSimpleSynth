@@ -63,11 +63,13 @@ class SynthOscillator: public godot::Resource{
     GDCLASS(SynthOscillator, godot::Resource)
 public:
     virtual float process() = 0; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
-
+    bool active = false;
+    virtual void note_on();
+    virtual void note_off();
+    float frequency_offset = 0.0f;
 protected:
     static void _bind_methods();
 };
-
 
 class SynthNoiseOscillator: public SynthOscillator{
     GDCLASS(SynthNoiseOscillator, SynthOscillator)
@@ -104,7 +106,7 @@ protected:
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
 public:
     void updatePhase() {
-        phase += frequency/sampleRate;
+        phase += frequency*(1.0f-frequency_offset)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
         }
@@ -155,6 +157,35 @@ public:
     }
 };
 
+
+class SynthGroupOscillator: public SynthOscillator{
+    GDCLASS(SynthGroupOscillator,SynthOscillator)
+protected:
+    static void _bind_methods();
+
+public:
+    godot::TypedArray<SynthPhaseOscillator> oscillators;
+    godot::Ref<SynthADSR> frequencyADSR;
+    float minimumFrequencyRatio = 0.01f;
+
+    float process() override;
+
+    void note_on() override;
+    void note_off() override;
+
+    //setgets
+    void set_oscillators(const godot::TypedArray<SynthPhaseOscillator> newOsc){oscillators = newOsc;};
+    godot::TypedArray<SynthPhaseOscillator> get_oscillators(){return oscillators;};
+
+    void set_freq_adsr(const godot::Ref<SynthADSR> newADSR){frequencyADSR = newADSR;};
+    godot::Ref<SynthADSR> get_freq_adsr(){return frequencyADSR;};
+
+    void set_minimum_frequency_ratio(const float newFreq){minimumFrequencyRatio = newFreq;}
+    float get_minimum_frequency_ratio(){return minimumFrequencyRatio;}
+};
+
+
+
 class SynthFilter: public godot::Resource{
     GDCLASS(SynthFilter,godot::Resource)
 protected:
@@ -178,7 +209,6 @@ public:
 
     virtual float process(float input,float envelopeRatio) = 0;
 };
-
 
 class SynthSVF : public SynthFilter{ // CODE FROM https://gist.github.com/hollance/2891d89c57adc71d9560bcf0e1e55c4b - THANKS!!
     GDCLASS(SynthSVF,SynthFilter)
