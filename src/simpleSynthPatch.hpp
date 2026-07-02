@@ -150,40 +150,24 @@ public:
 
     float process() override{
         updatePhase();
-        return phase * 2.0f-1.0f;
+        switch(waveform){
+            case SINE:
+                return std::sin(Math_TAU * phase);
+            case SQUARE:
+                return phase < 0.5f ? 1.0f : -1.0f;
+            case TRIANGLE:
+                return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
+            case SAWTOOTH:
+                return phase * 2.0f-1.0f;
+        }
     }
+    
+    void set_waveform(const int newForm){waveform = static_cast<wf>(newForm);;}
+    int get_waveform(){return waveform;}
+    void set_frequency(const float newFreq){frequency = newFreq;};
+    float get_frequency() const{return frequency;};
 };
 
-class SynthTriangleOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthTriangleOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
-    }
-};
-class SynthSineOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthSineOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return std::sin(Math_TAU * phase);
-    }
-};
-class SynthSquareOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthSquareOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return phase < 0.5f ? 1.0f : -1.0f;
-    }
-};
 
 
 class SynthGroupOscillator: public SynthOscillator{

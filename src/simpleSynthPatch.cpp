@@ -88,7 +88,6 @@ void SynthPhaseOscillator::_bind_methods(){
     
 }
     
-}
 
 void SynthGroupOscillator::note_on(){
     active = true;
