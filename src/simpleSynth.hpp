@@ -111,8 +111,8 @@ public:
     //Mandatory overrides
     int get_loop_count() const{return total_notes;};
     float get_playback_position() const {return 0.0f;};
-    void start(float p_from_pos = 0.0) {return;};
-    void stop(){return;}
+    void _start(double p_from_pos = 0.0) override {return;};
+    void _stop() override{return;}
 
 
 private:

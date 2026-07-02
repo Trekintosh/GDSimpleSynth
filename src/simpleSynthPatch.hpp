@@ -58,12 +58,31 @@ protected:
     static void _bind_methods();
 };
 
+//Extremely simple sine-wave LFO.
+class SynthLFO: public godot::Resource{
+    GDCLASS(SynthLFO,godot::Resource)
+protected:
+    static void _bind_methods();
+public:
+    float process(){
+        phase += rate/sampleRate;
+        while(phase>=1.0f){phase-=1.0f;}
+        return std::sin(Math_TAU*phase);
+    };
+    float phase = 0.0f;
+    float rate = 1.0f;
+    //SetGets;
+    void set_rate(const float x){rate = x;}
+    float get_rate() const{return rate;}
+private:
+    float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
+};
+
 
 class SynthOscillator: public godot::Resource{
     GDCLASS(SynthOscillator, godot::Resource)
 public:
     virtual float process() = 0; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
-
 protected:
     static void _bind_methods();
 };
@@ -102,58 +121,51 @@ protected:
     float phase = 0.0f;
     float frequency = 440.0f;
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
+    godot::Ref<SynthLFO> lfo;
+    float lfo_depth = 0.0f;
+    virtual float processLFO(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD.
+    //setgets
+    void set_lfo(const godot::Ref<SynthLFO> newlfo){lfo = newlfo;}
+    godot::Ref<SynthLFO> get_lfo() const{return lfo;}
+
+    void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
+    float get_lfo_depth() const{return lfo_depth;}
 public:
     void updatePhase() {
-        phase += frequency/sampleRate;
+        float ratio = processLFO();
+        phase += (frequency*ratio)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
         }
     };
+    enum wf{
+        SINE,
+        SQUARE,
+        TRIANGLE,
+        SAWTOOTH
+    };
+    wf waveform = SINE;
+
+    float process() override{
+        updatePhase();
+        switch(waveform){
+            case SINE:
+                return std::sin(Math_TAU * phase);
+            case SQUARE:
+                return phase < 0.5f ? 1.0f : -1.0f;
+            case TRIANGLE:
+                return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
+            case SAWTOOTH:
+                return phase * 2.0f-1.0f;
+        }
+        
+    }
+    void set_waveform(const int newForm){waveform = static_cast<wf>(newForm);;}
+    int get_waveform(){return waveform;}
     void set_frequency(const float newFreq){frequency = newFreq;};
     float get_frequency() const{return frequency;};
 };
 
-class SynthSawOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthSawOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return phase * 2.0f-1.0f;
-    }
-};
-
-class SynthTriangleOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthTriangleOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
-    }
-};
-class SynthSineOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthSineOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return std::sin(Math_TAU * phase);
-    }
-};
-class SynthSquareOscillator: public SynthPhaseOscillator{
-    GDCLASS(SynthSquareOscillator,SynthPhaseOscillator)
-protected:
-    static void _bind_methods();
-public:
-    float process() override{
-        updatePhase();
-        return phase < 0.5f ? 1.0f : -1.0f;
-    }
-};
 
 class SynthFilter: public godot::Resource{
     GDCLASS(SynthFilter,godot::Resource)

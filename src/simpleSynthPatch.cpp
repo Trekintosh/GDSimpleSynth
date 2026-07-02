@@ -10,8 +10,14 @@
 
 using namespace godot;
 
+void SynthLFO::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_rate","LFO Rate"), &SynthLFO::set_rate);
+    ClassDB::bind_method(D_METHOD("get_rate"), &SynthLFO::get_rate);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO rate (hz)"),"set_rate","get_rate");
+}
+
 void SynthOscillator::_bind_methods(){
-    //EMPTY BECAUSE THIS IS AN ABSTRACT.
+    //BLANK BECAUSE THIS IS A BASE, AN ABSTRACT
 }
 
 float SynthNoiseOscillator::process(){
@@ -43,24 +49,37 @@ void SynthNoiseOscillator::_bind_methods(){
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3,"Noise Mix (W,P,B)"),"set_noise_mix","get_noise_mix");
 }
 
+
+float SynthPhaseOscillator::processLFO(){
+    if(!lfo.is_valid()){return 1.0f;} //if no LFO just bail.
+    //Convert LFO result to semitones.
+    float semitone_ratio = std::pow(2.0f,(lfo->process() * lfo_depth) / 12.0f);
+    return semitone_ratio;
+}
+
+
+
 void SynthPhaseOscillator::_bind_methods(){
-    ClassDB::bind_method(D_METHOD("set_freq","Oscillator Frequency (hz)"), &SynthSawOscillator::set_frequency);
-    ClassDB::bind_method(D_METHOD("get_freq"), &SynthSawOscillator::get_frequency);
+    ClassDB::bind_method(D_METHOD("set_freq","Oscillator Frequency (hz)"), &SynthPhaseOscillator::set_frequency);
+    ClassDB::bind_method(D_METHOD("get_freq"), &SynthPhaseOscillator::get_frequency);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Sawtooth Oscillator Frequency (hz)"),"set_freq","get_freq");
-}
 
-void SynthSawOscillator::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_wf","Waveform"), &SynthPhaseOscillator::set_waveform);
+    ClassDB::bind_method(D_METHOD("get_wf"), &SynthPhaseOscillator::get_waveform);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Waveform Shape",PROPERTY_HINT_ENUM,"Sine,Square,Triangle,Sawtooth"),"set_wf","get_wf");
 
-}
-void SynthSineOscillator::_bind_methods(){
+
+    ClassDB::bind_method(D_METHOD("set_lfo","LFO"), &SynthPhaseOscillator::set_lfo);
+    ClassDB::bind_method(D_METHOD("get_lfo"),&SynthPhaseOscillator::get_lfo);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthLFO"), "set_lfo", "get_lfo");
+    
+    ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"), &SynthPhaseOscillator::set_lfo_depth);
+    ClassDB::bind_method(D_METHOD("get_lfo_depth"), &SynthPhaseOscillator::get_lfo_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO Frequency span (hz)"),"set_lfo_depth","get_lfo_depth");
     
 }
-void SynthTriangleOscillator::_bind_methods(){
     
-}
-void SynthSquareOscillator::_bind_methods(){
-    
-}
+
 void SynthFilter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_min_freq","Minimum Filter Frequency (hz)"), &::SynthFilter::setMinFreq);
     ClassDB::bind_method(D_METHOD("get_min_freq"), &SynthFilter::getMinFreq);
