@@ -1,5 +1,6 @@
 #include "simpleSynthPatch.hpp"
 #include "godot_cpp/classes/global_constants.hpp"
+#include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/core/class_db.hpp"
 #include "godot_cpp/core/defs.hpp"
 #include "godot_cpp/core/math.hpp"
@@ -14,6 +15,14 @@ void SynthLFO::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_rate","LFO Rate"), &SynthLFO::set_rate);
     ClassDB::bind_method(D_METHOD("get_rate"), &SynthLFO::get_rate);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO rate (hz)"),"set_rate","get_rate");
+}
+
+void SynthOscillator::note_on(){
+    active = true;
+}
+
+void SynthOscillator::note_off(){
+    active=false;
 }
 
 void SynthOscillator::_bind_methods(){
@@ -79,6 +88,72 @@ void SynthPhaseOscillator::_bind_methods(){
     
 }
     
+}
+
+void SynthGroupOscillator::note_on(){
+    active = true;
+    frequencyADSR->note_on();
+    // print_line("hi");
+    for(int i=0;i<oscillators.size();i++){
+        Ref<SynthPhaseOscillator> osc = oscillators[i];
+        osc->note_on();
+    }
+}
+void SynthGroupOscillator::note_off(){
+    frequencyADSR->note_off();
+    // print_line("bye");
+}
+
+// int counter = 0;
+// float biggestOutput = 0.0f;
+float SynthGroupOscillator::process(){
+    float output = 0.0f;
+    float adsrResponse = frequencyADSR->process(1);
+    
+    bool deactivate = true;
+    if(adsrResponse>=0.0f){
+        deactivate = false;
+    }
+    //First iterate through the oscillators and get the results
+    for(int i=0; i<oscillators.size();i++){
+        Ref<SynthPhaseOscillator> osc = oscillators[i];
+        if(deactivate){
+            osc->note_off();
+        }
+        else{
+            float newFreqRatio = Math::lerp(1.0f,minimumFrequencyRatio,adsrResponse);
+            osc->frequency_offset = newFreqRatio;
+            output+=osc->process();
+        }
+    }
+    if(deactivate){
+        active=false;
+        return 0.0f;
+    }
+    if(oscillators.size()>0){
+        output/=oscillators.size();
+    }
+    // if(abs(output)>biggestOutput){biggestOutput = abs(output);}
+    // if(counter%5000==1 && active){print_line(biggestOutput);}
+    // counter++;
+    return output;
+}
+
+void SynthGroupOscillator::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_min_freq","Minimum Oscillator Frequency Ratio"), &SynthGroupOscillator::set_minimum_frequency_ratio);
+    ClassDB::bind_method(D_METHOD("get_min_freq"), &SynthGroupOscillator::get_minimum_frequency_ratio);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Minimum Oscillator frequency ratio at the bottom of the ADSR"),"set_min_freq","get_min_freq");
+    
+    ClassDB::bind_method(D_METHOD("set_oscillators","Oscillator Array"),&SynthGroupOscillator::set_oscillators);
+    ClassDB::bind_method(D_METHOD("get_oscillators"),&SynthGroupOscillator::get_oscillators);
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Oscillators",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthPhaseOscillator"),"set_oscillators","get_oscillators");
+   
+    ClassDB::bind_method(D_METHOD("set_freq_adsr","ADSR"), &SynthGroupOscillator::set_freq_adsr);
+    ClassDB::bind_method(D_METHOD("get_freq_adsr"),&SynthGroupOscillator::get_freq_adsr);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Frequency ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_freq_adsr", "get_freq_adsr");
+
+}
+
 
 void SynthFilter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_min_freq","Minimum Filter Frequency (hz)"), &::SynthFilter::setMinFreq);
@@ -267,6 +342,12 @@ void SimpleSynthPatch::note_on(){
     if(!freqADSR.is_null()){
         freqADSR->note_on();
     }
+    if(oscillators.size()>0){
+        for(int i=0;i<oscillators.size();i++){
+            Ref<SynthOscillator> osc = oscillators[i];
+            osc->note_on();
+        }
+    }
 }
 
 void SimpleSynthPatch::note_off(){
@@ -275,6 +356,12 @@ void SimpleSynthPatch::note_off(){
     }
     if(!freqADSR.is_null()){
         freqADSR->note_off();
+    }
+    if(oscillators.size()>0){
+        for(int i=0;i<oscillators.size();i++){
+            Ref<SynthOscillator> osc = oscillators[i];
+            osc->note_off();
+        }
     }
 }
 

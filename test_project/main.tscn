@@ -8,16 +8,22 @@ Decay = 0.2
 Sustain = 1.0
 Release = 1.0
 
-[sub_resource type="SynthSVF" id="SynthSVF_y4anh"]
-"Q Ratio (Resonance Factor)" = 3.0
-"Pass filter mix ratio (Low Pass, Band Pass, High Pass)" = Vector3(1, 1, 0.5)
-"Minimum Filter Frequency (hz)" = 300.0
-"Maximum Filter Frequency (hz)" = 2100.0
+[sub_resource type="SynthSVF" id="SynthSVF_ig7tw"]
+"Q Ratio (Resonance Factor)" = 0.6
+"Pass filter mix ratio (Low Pass, Band Pass, High Pass)" = Vector3(0.5, 1, 0)
+"Minimum Filter Frequency (hz)" = 100.0
+"Maximum Filter Frequency (hz)" = 4000.0
 
 [sub_resource type="SynthADSR" id="SynthADSR_nu4ry"]
 Attack = 0.5
 Decay = 0.5
-Sustain = 0.2
+Sustain = 0.8
+Release = 1.0
+
+[sub_resource type="SynthADSR" id="SynthADSR_laglb"]
+Attack = 0.2
+Decay = 0.2
+Sustain = 1.0
 Release = 1.0
 
 [sub_resource type="SynthLFO" id="SynthLFO_3ngog"]

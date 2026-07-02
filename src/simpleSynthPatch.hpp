@@ -83,10 +83,13 @@ class SynthOscillator: public godot::Resource{
     GDCLASS(SynthOscillator, godot::Resource)
 public:
     virtual float process() = 0; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
+    bool active = false;
+    virtual void note_on();
+    virtual void note_off();
+    float frequency_offset = 0.0f;
 protected:
     static void _bind_methods();
 };
-
 
 class SynthNoiseOscillator: public SynthOscillator{
     GDCLASS(SynthNoiseOscillator, SynthOscillator)
@@ -132,8 +135,7 @@ protected:
     float get_lfo_depth() const{return lfo_depth;}
 public:
     void updatePhase() {
-        float ratio = processLFO();
-        phase += (frequency*ratio)/sampleRate;
+        phase += frequency*(1.0f-frequency_offset)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
         }
@@ -148,23 +150,68 @@ public:
 
     float process() override{
         updatePhase();
-        switch(waveform){
-            case SINE:
-                return std::sin(Math_TAU * phase);
-            case SQUARE:
-                return phase < 0.5f ? 1.0f : -1.0f;
-            case TRIANGLE:
-                return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
-            case SAWTOOTH:
-                return phase * 2.0f-1.0f;
-        }
-        
+        return phase * 2.0f-1.0f;
     }
-    void set_waveform(const int newForm){waveform = static_cast<wf>(newForm);;}
-    int get_waveform(){return waveform;}
-    void set_frequency(const float newFreq){frequency = newFreq;};
-    float get_frequency() const{return frequency;};
 };
+
+class SynthTriangleOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthTriangleOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
+    }
+};
+class SynthSineOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthSineOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return std::sin(Math_TAU * phase);
+    }
+};
+class SynthSquareOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthSquareOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return phase < 0.5f ? 1.0f : -1.0f;
+    }
+};
+
+
+class SynthGroupOscillator: public SynthOscillator{
+    GDCLASS(SynthGroupOscillator,SynthOscillator)
+protected:
+    static void _bind_methods();
+
+public:
+    godot::TypedArray<SynthPhaseOscillator> oscillators;
+    godot::Ref<SynthADSR> frequencyADSR;
+    float minimumFrequencyRatio = 0.01f;
+
+    float process() override;
+
+    void note_on() override;
+    void note_off() override;
+
+    //setgets
+    void set_oscillators(const godot::TypedArray<SynthPhaseOscillator> newOsc){oscillators = newOsc;};
+    godot::TypedArray<SynthPhaseOscillator> get_oscillators(){return oscillators;};
+
+    void set_freq_adsr(const godot::Ref<SynthADSR> newADSR){frequencyADSR = newADSR;};
+    godot::Ref<SynthADSR> get_freq_adsr(){return frequencyADSR;};
+
+    void set_minimum_frequency_ratio(const float newFreq){minimumFrequencyRatio = newFreq;}
+    float get_minimum_frequency_ratio(){return minimumFrequencyRatio;}
+};
+
 
 
 class SynthFilter: public godot::Resource{
@@ -190,7 +237,6 @@ public:
 
     virtual float process(float input,float envelopeRatio) = 0;
 };
-
 
 class SynthSVF : public SynthFilter{ // CODE FROM https://gist.github.com/hollance/2891d89c57adc71d9560bcf0e1e55c4b - THANKS!!
     GDCLASS(SynthSVF,SynthFilter)
