@@ -84,8 +84,9 @@ void SynthGroupOscillator::note_off(){
     frequencyADSR->note_off();
     // print_line("bye");
 }
-int counter = 0;
-float biggestOutput = 0.0f;
+
+// int counter = 0;
+// float biggestOutput = 0.0f;
 float SynthGroupOscillator::process(){
     float output = 0.0f;
     float adsrResponse = frequencyADSR->process(1);
@@ -106,12 +107,16 @@ float SynthGroupOscillator::process(){
             output+=osc->process();
         }
     }
+    if(deactivate){
+        active=false;
+        return 0.0f;
+    }
     if(oscillators.size()>0){
         output/=oscillators.size();
     }
-    if(abs(output)>biggestOutput){biggestOutput = abs(output);}
-    if(counter%5000==1 && active){print_line(biggestOutput);}
-    counter++;
+    // if(abs(output)>biggestOutput){biggestOutput = abs(output);}
+    // if(counter%5000==1 && active){print_line(biggestOutput);}
+    // counter++;
     return output;
 }
 

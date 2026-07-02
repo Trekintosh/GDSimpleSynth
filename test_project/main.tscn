@@ -8,29 +8,53 @@ Decay = 0.2
 Sustain = 1.0
 Release = 1.0
 
+[sub_resource type="SynthSVF" id="SynthSVF_ig7tw"]
+"Q Ratio (Resonance Factor)" = 0.6
+"Pass filter mix ratio (Low Pass, Band Pass, High Pass)" = Vector3(0.5, 1, 0)
+"Minimum Filter Frequency (hz)" = 100.0
+"Maximum Filter Frequency (hz)" = 4000.0
+
 [sub_resource type="SynthADSR" id="SynthADSR_nu4ry"]
 Attack = 0.5
 Decay = 0.5
-Sustain = 0.2
+Sustain = 0.8
 Release = 1.0
 
 [sub_resource type="SynthADSR" id="SynthADSR_laglb"]
 Attack = 0.2
 Decay = 0.2
-Sustain = 0.7
+Sustain = 1.0
 Release = 1.0
 
-[sub_resource type="SynthTriangleOscillator" id="SynthTriangleOscillator_ig7tw"]
+[sub_resource type="SynthSquareOscillator" id="SynthSquareOscillator_ig7tw"]
 "Sawtooth Oscillator Frequency (hz)" = 392.0
 
+[sub_resource type="SynthSquareOscillator" id="SynthSquareOscillator_0xm2m"]
+"Sawtooth Oscillator Frequency (hz)" = 329.63
+
+[sub_resource type="SynthSquareOscillator" id="SynthSquareOscillator_h2yge"]
+"Sawtooth Oscillator Frequency (hz)" = 261.63
+
+[sub_resource type="SynthSawOscillator" id="SynthSawOscillator_ig7tw"]
+
+[sub_resource type="SynthSquareOscillator" id="SynthSquareOscillator_1bvp3"]
+"Sawtooth Oscillator Frequency (hz)" = 130.81
+
+[sub_resource type="SynthSquareOscillator" id="SynthSquareOscillator_lquwl"]
+"Sawtooth Oscillator Frequency (hz)" = 207.6
+
 [sub_resource type="SynthGroupOscillator" id="SynthGroupOscillator_fm888"]
-Oscillators = Array[SynthPhaseOscillator]([SubResource("SynthTriangleOscillator_ig7tw")])
+"Minimum Oscillator frequency ratio at the bottom of the ADSR" = 0.5
+Oscillators = Array[SynthPhaseOscillator]([SubResource("SynthSquareOscillator_ig7tw"), SubResource("SynthSquareOscillator_0xm2m"), SubResource("SynthSquareOscillator_h2yge"), SubResource("SynthSawOscillator_ig7tw"), SubResource("SynthSquareOscillator_1bvp3"), SubResource("SynthSquareOscillator_lquwl")])
 "Frequency ADSR" = SubResource("SynthADSR_laglb")
+
+[sub_resource type="SynthTriangleOscillator" id="SynthTriangleOscillator_ig7tw"]
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_b5fn1"]
 "Amplitude ADSR" = SubResource("SynthADSR_iv00o")
 "Frequency ADSR" = SubResource("SynthADSR_nu4ry")
-Oscillators = Array[SynthOscillator]([SubResource("SynthGroupOscillator_fm888")])
+Oscillators = Array[SynthOscillator]([SubResource("SynthGroupOscillator_fm888"), SubResource("SynthTriangleOscillator_ig7tw")])
+Filters = Array[SynthFilter]([SubResource("SynthSVF_ig7tw")])
 
 [sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_udegv"]
 
