@@ -1,10 +1,12 @@
 #pragma once
-
+#include "godot_cpp/core/math_defs.hpp"
+#define _USE_MATH_DEFINES
 #include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/classes/resource.hpp"
 #include "godot_cpp/classes/wrapped.hpp"
 #include "godot_cpp/variant/typed_array.hpp"
 #include "godot_cpp/variant/vector3.hpp"
+#include "godot_cpp/classes/audio_server.hpp"
 
 
 //This is a class to hold ADSR stuff
@@ -28,7 +30,8 @@ private:
     };
     state currentState = Idle;
 
-    int sampleRate = 44100;
+    int sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
+
     int sampleTime = 0;
 
     float releaseValue = 0.0f;
@@ -91,6 +94,141 @@ protected:
 };
 
 
+class SynthPhaseOscillator: public SynthOscillator{
+    GDCLASS(SynthPhaseOscillator,SynthOscillator)
+protected:
+    static void _bind_methods();
+protected:
+    float phase = 0.0f;
+    float frequency = 440.0f;
+    float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
+public:
+    void updatePhase() {
+        phase += frequency/sampleRate;
+        while(phase>=1.0f){
+            phase-=1.0f;
+        }
+    };
+    void set_frequency(const float newFreq){frequency = newFreq;};
+    float get_frequency() const{return frequency;};
+};
+
+class SynthSawOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthSawOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return phase * 2.0f-1.0f;
+    }
+};
+
+class SynthTriangleOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthTriangleOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
+    }
+};
+class SynthSineOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthSineOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return std::sin(Math_TAU * phase);
+    }
+};
+class SynthSquareOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthSquareOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float process() override{
+        updatePhase();
+        return phase < 0.5f ? 1.0f : -1.0f;
+    }
+};
+
+class SynthFilter: public godot::Resource{
+    GDCLASS(SynthFilter,godot::Resource)
+protected:
+    static void _bind_methods();
+public:
+    float minFrequencyHz = 1000.0f;
+    float maxFrequencyHz = 5000.0f;
+    float frequencyOffset = 0.0f;
+    void setMinFreq(const float newFreq){
+        minFrequencyHz = newFreq;
+    }
+    void setMaxFreq(const float newFreq){
+        maxFrequencyHz = newFreq;
+    }
+    float getMinFreq(){
+        return minFrequencyHz;
+    }
+    float getMaxFreq(){
+        return maxFrequencyHz;
+    }
+
+    virtual float process(float input,float envelopeRatio) = 0;
+};
+
+
+class SynthSVF : public SynthFilter{ // CODE FROM https://gist.github.com/hollance/2891d89c57adc71d9560bcf0e1e55c4b - THANKS!!
+    GDCLASS(SynthSVF,SynthFilter)
+protected:
+    static void _bind_methods();
+public:
+    float Q = 1.0;
+    godot::Vector3 pass_mix = godot::Vector3(0.0f,1.0f,0.0f); //Low Pass, Band Pass, High Pass, respectively. Band Pass full by default.
+    void setCoefficients(float freq, float newQ) noexcept{
+        g = std::tan(Math_PI * freq / sampleRate);
+        k = 1.0 / newQ;
+        a1 = 1.0 / (1.0 + g * (g + k));
+        a2 = g * a1;
+        a3 = g * a2;
+    };
+
+    void set_pass_mix(const godot::Vector3 newMix){
+        pass_mix = newMix;
+    }
+    godot::Vector3 get_pass_mix(){
+        return pass_mix;
+    };
+    void set_q(const float newQ){
+        Q = newQ;
+    };
+    float get_q(){
+        return Q;
+    };
+
+    float process(float v0, float envelopeRatio) override{
+        float cutoff = minFrequencyHz*std::pow(maxFrequencyHz/minFrequencyHz,envelopeRatio); //EXPONENTIAL GAIN -- TODO: CHECK IF THIS SUCKS ASS
+        cutoff *= 1.0+frequencyOffset;
+        setCoefficients(cutoff, Q);
+        float v3 = v0 - ic2eq;
+        float v1 = a1 * ic1eq + a2 * v3;
+        float v2 = ic2eq + a2 * ic1eq + a3 * v3;
+        float high = v0 - k * v1 - v2;
+        ic1eq = 2.0f * v1 - ic1eq;
+        ic2eq = 2.0f * v2 - ic2eq;
+        // if (fabs(ic1eq) < 1e-20f){ic1eq = 0.0f;}
+        // if (fabs(ic2eq) < 1e-20f){ic2eq = 0.0f;} //bring to zero for floating poin weirdness.
+        return pass_mix.x * v2 + pass_mix.y * v1 + pass_mix.z * high;
+    };
+
+private:
+    float g, k, a1, a2, a3;  // filter coefficients
+    float ic1eq, ic2eq;      // internal state
+    float sampleRate = (float)godot::AudioServer::get_singleton()->get_mix_rate();
+
+};
 
 
 class SimpleSynthPatch: public godot::Resource{
@@ -100,8 +238,12 @@ protected:
 public:
 
     godot::TypedArray<SynthOscillator> oscillators;
+    godot::TypedArray<SynthFilter> filters;
     godot::Ref<SynthADSR> freqADSR;
     godot::Ref<SynthADSR> ampADSR;
+
+    float frequencyOffset = 0.0f;
+    float amplitudeOffset = 0.0f;
 
     // Setters and getters
     void updateFreqADSR(float a,float d, float s, float r);
@@ -116,6 +258,9 @@ public:
 
     void set_oscillators(const godot::TypedArray<SynthOscillator> newOsc);
     godot::TypedArray<SynthOscillator> get_oscillators() const;
+
+    void set_filters(const godot::TypedArray<SynthFilter> newFilters);
+    godot::TypedArray<SynthFilter> get_filters() const;
 
 
     //Processing

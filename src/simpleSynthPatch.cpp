@@ -20,6 +20,7 @@ float SynthNoiseOscillator::process(){
     brown *= 0.9;
 	brown += white * 0.01;
     
+    //Paul Kellett economy pink noise filter.
     pink_b0 = 0.99765 * pink_b0 + white * 0.0990460;
     pink_b1 = 0.96300 * pink_b1 + white * 0.2965164;
     pink_b2 = 0.57000 * pink_b2 + white * 1.0526913;
@@ -42,6 +43,41 @@ void SynthNoiseOscillator::_bind_methods(){
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3,"Noise Mix (W,P,B)"),"set_noise_mix","get_noise_mix");
 }
 
+void SynthPhaseOscillator::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_freq","Oscillator Frequency (hz)"), &SynthSawOscillator::set_frequency);
+    ClassDB::bind_method(D_METHOD("get_freq"), &SynthSawOscillator::get_frequency);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Sawtooth Oscillator Frequency (hz)"),"set_freq","get_freq");
+}
+
+void SynthSawOscillator::_bind_methods(){
+
+}
+void SynthSineOscillator::_bind_methods(){
+    
+}
+void SynthTriangleOscillator::_bind_methods(){
+    
+}
+void SynthSquareOscillator::_bind_methods(){
+    
+}
+void SynthFilter::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_min_freq","Minimum Filter Frequency (hz)"), &::SynthFilter::setMinFreq);
+    ClassDB::bind_method(D_METHOD("get_min_freq"), &SynthFilter::getMinFreq);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Minimum Filter Frequency (hz)"),"set_min_freq","get_min_freq");
+    ClassDB::bind_method(D_METHOD("set_max_freq","Maximum Filter Frequency (hz)"), &::SynthFilter::setMaxFreq);
+    ClassDB::bind_method(D_METHOD("get_max_freq"), &SynthFilter::getMaxFreq);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Maximum Filter Frequency (hz)"),"set_max_freq","get_max_freq");
+}
+
+void SynthSVF::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_q","Q (resonant factor)"),&SynthSVF::set_q);
+    ClassDB::bind_method(D_METHOD("get_q"),&SynthSVF::get_q);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Q Ratio (Resonance Factor)"),"set_q","get_q");
+    ClassDB::bind_method(D_METHOD("set_pass_mix","Pass filter mix ratio (Low Pass, Band Pass, High Pass)"),&SynthSVF::set_pass_mix);
+    ClassDB::bind_method(D_METHOD("get_pass_mix"),&SynthSVF::get_pass_mix);
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3,"Pass filter mix ratio (Low Pass, Band Pass, High Pass)"),"set_pass_mix","get_pass_mix");
+}
 
 //ADSR setters/getters:
 void SynthADSR::set_attack(const float nVal){
@@ -172,17 +208,35 @@ TypedArray<SynthOscillator> SimpleSynthPatch::get_oscillators() const{
     return oscillators;
 }
 
+void SimpleSynthPatch::set_filters(const TypedArray<SynthFilter> newFilters){
+    filters = newFilters;
+}
+
+TypedArray<SynthFilter> SimpleSynthPatch::get_filters() const{
+    return filters;
+}
+
 ///////////////////// SIMPLE SYNTH PATCH ACTUAL PROCESSING ///////////////////
 float SimpleSynthPatch::process(){
     if(oscillators.size()==0){
         return 0.0f;
     }
+    ///OSCILLATOR BLOCK
     float output = 0.0f;
     for(int i = 0; i<oscillators.size();i++){
         Ref<SynthOscillator> osc = oscillators[i];
         output += osc->process();
     }
+    output = output/oscillators.size();
+    ///FILTER BLOCK
+    float freqEnvelope = freqADSR->process(1); //Get our frequency ratio first.
+    for(int i=0; i<filters.size();i++){
+        Ref<SynthFilter> filter = filters[i];
+        filter->frequencyOffset = frequencyOffset; //Apply frequency offset for randomness in sequencer (or in general)
+        output = filter->process(output,freqEnvelope); //REMEMBER: FILTERS HAVE THEIR OWN FREQUENCY GATES. WE ONLY PASS A RATIO!
+    }
     output *= ampADSR->process();
+    output *= (1.0f-amplitudeOffset);
     // print_line(output);
     return output;
 }
@@ -221,6 +275,11 @@ void SimpleSynthPatch::_bind_methods(){
     ClassDB::bind_method(D_METHOD("get_oscillators"),&SimpleSynthPatch::get_oscillators);
     
     ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Oscillators",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthOscillator"),"set_oscillators","get_oscillators");
+    
+    ClassDB::bind_method(D_METHOD("set_filters","Filter Array"),&SimpleSynthPatch::set_filters);
+    ClassDB::bind_method(D_METHOD("get_filters"),&SimpleSynthPatch::get_filters);
+    
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Filters",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthFilter"),"set_filters","get_filters");
 
     //Actual functions
     ClassDB::bind_method(D_METHOD("note_on"),&SimpleSynthPatch::note_on);

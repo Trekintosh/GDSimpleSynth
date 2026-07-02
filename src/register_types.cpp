@@ -16,11 +16,20 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level)
 	}
 
 	// Register your classes here, so they are available in the Godot editor and engine
-	GDREGISTER_CLASS(SimpleSynth)
+	GDREGISTER_CLASS(SimpleSynthStream)
+	GDREGISTER_CLASS(SimpleSynthPlayback)
 	GDREGISTER_CLASS(SimpleSynthPatch)
 	GDREGISTER_CLASS(SynthADSR)
 	GDREGISTER_ABSTRACT_CLASS(SynthOscillator)
 	GDREGISTER_CLASS(SynthNoiseOscillator)
+	GDREGISTER_ABSTRACT_CLASS(SynthPhaseOscillator)
+	GDREGISTER_CLASS(SynthSawOscillator)
+	GDREGISTER_CLASS(SynthTriangleOscillator)
+	GDREGISTER_CLASS(SynthSineOscillator)
+	GDREGISTER_CLASS(SynthSquareOscillator)
+	GDREGISTER_ABSTRACT_CLASS(SynthFilter)
+	GDREGISTER_CLASS(SynthSVF)
+	GDREGISTER_CLASS(SimpleSynthSequencerSettings)
 }
 
 void uninitialize_gdextension_types(ModuleInitializationLevel p_level) {
