@@ -86,7 +86,7 @@ public:
     bool active = false;
     virtual void note_on();
     virtual void note_off();
-    float frequency_offset = 0.0f;
+    float semitone_offset = 0.0f;
 protected:
     static void _bind_methods();
 };
@@ -122,20 +122,43 @@ protected:
     static void _bind_methods();
 protected:
     float phase = 0.0f;
-    float frequency = 440.0f;
-    float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
     godot::Ref<SynthLFO> lfo;
     float lfo_depth = 0.0f;
-    virtual float processLFO(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD.
+    float pitchBlend;//Current pitch blend offset
+    float pitchBlendRange;
+    virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD.
+
+
     //setgets
     void set_lfo(const godot::Ref<SynthLFO> newlfo){lfo = newlfo;}
     godot::Ref<SynthLFO> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
     float get_lfo_depth() const{return lfo_depth;}
+private:
+    float frequency = 440.0f;
+    float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
 public:
+    enum Note{
+        C,
+        C_SHARP,
+        D,
+        D_SHARP,
+        E,
+        F,
+        F_SHARP,
+        G,
+        G_SHARP,
+        A,
+        A_SHARP,
+        B
+    };
+    Note note = A;
+    int octave = 4;
+
     void updatePhase() {
-        phase += frequency*(1.0f-frequency_offset)/sampleRate;
+        float pitchSemitones = processPitch();
+        phase += (frequency+pitchSemitones)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
         }
@@ -161,11 +184,25 @@ public:
                 return phase * 2.0f-1.0f;
         }
     }
+
+    //For handling notes.
+    void updateFrequency(){
+        int midi = (octave+1)*12+note;
+        frequency = 440.0f * std::pow(2.0f,(midi-69)/12.0f); //Convert midi to semitones then set frequency.
+    }
     
+    //Setgets
     void set_waveform(const int newForm){waveform = static_cast<wf>(newForm);;}
     int get_waveform(){return waveform;}
     void set_frequency(const float newFreq){frequency = newFreq;};
     float get_frequency() const{return frequency;};
+    
+    void set_note(const int new_note){note = static_cast<Note>(new_note);updateFrequency();}
+    int get_note()const{return note;}
+    void set_octave(const int new_octave){octave = new_octave;updateFrequency();}
+    int get_octave()const{return octave;}
+    
+
 };
 
 
@@ -178,7 +215,8 @@ protected:
 public:
     godot::TypedArray<SynthPhaseOscillator> oscillators;
     godot::Ref<SynthADSR> frequencyADSR;
-    float minimumFrequencyRatio = 0.01f;
+    float min_semitones = -12.0f; //How many semitones below the target's note can it go?
+    float max_semitones = 12.0f; //The upper end of the ADSR compared to the target's target frequency.
 
     float process() override;
 
@@ -192,8 +230,12 @@ public:
     void set_freq_adsr(const godot::Ref<SynthADSR> newADSR){frequencyADSR = newADSR;};
     godot::Ref<SynthADSR> get_freq_adsr(){return frequencyADSR;};
 
-    void set_minimum_frequency_ratio(const float newFreq){minimumFrequencyRatio = newFreq;}
-    float get_minimum_frequency_ratio(){return minimumFrequencyRatio;}
+    void set_min_semitones(const float x){min_semitones = x;}
+    float get_min_semitones(){return min_semitones;}
+
+    void set_max_semitones(const float x){max_semitones = x;}
+    float get_max_semitones(){return max_semitones;}
+
 };
 
 

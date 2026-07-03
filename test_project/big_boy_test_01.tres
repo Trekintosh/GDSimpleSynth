@@ -1,0 +1,72 @@
+[gd_resource type="SimpleSynthPatch" format=3 uid="uid://bxf7j6mnujq5l"]
+
+[sub_resource type="SynthADSR" id="SynthADSR_badm3"]
+Attack = 0.1
+Decay = 0.2
+Sustain = 0.8
+Release = 1.0
+
+[sub_resource type="SynthSVF" id="SynthSVF_ig7tw"]
+"Q Ratio (Resonance Factor)" = 0.8
+"Pass filter mix ratio (Low Pass, Band Pass, High Pass)" = Vector3(1, 0, 0)
+"Minimum Filter Frequency (hz)" = 200.0
+
+[sub_resource type="SynthADSR" id="SynthADSR_ne5we"]
+Attack = 0.05
+Decay = 0.2
+Sustain = 0.9
+Release = 1.0
+
+[sub_resource type="SynthADSR" id="SynthADSR_ig7tw"]
+Attack = 0.5
+Decay = 1.0
+Sustain = 1.0
+Release = 2.0
+
+[sub_resource type="SynthLFO" id="SynthLFO_h2yge"]
+"LFO rate (hz)" = 150.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_0xm2m"]
+"Oscillator Frequency (hz)" = 130.81277
+"Waveform Shape" = 3
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_h2yge")
+"LFO Frequency span (semitones)" = 2.0
+"Oscillator Note" = 0
+Octave = 3
+
+[sub_resource type="SynthLFO" id="SynthLFO_lquwl"]
+"LFO rate (hz)" = 250.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_1bvp3"]
+"Oscillator Frequency (hz)" = 146.83238
+"Waveform Shape" = 3
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_lquwl")
+"LFO Frequency span (semitones)" = 2.0
+"Oscillator Note" = 2
+Octave = 3
+
+[sub_resource type="SynthLFO" id="SynthLFO_272bh"]
+"LFO rate (hz)" = 200.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_7mycd"]
+"Oscillator Frequency (hz)" = 195.99773
+"Waveform Shape" = 3
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_272bh")
+"LFO Frequency span (semitones)" = 2.0
+"Oscillator Note" = 7
+Octave = 3
+
+[sub_resource type="SynthGroupOscillator" id="SynthGroupOscillator_ig7tw"]
+"Minimum Oscillator frequency offset in semitones" = -4.0
+"Maximum Oscillator frequency offset in semitones" = 0.0
+Oscillators = Array[SynthPhaseOscillator]([SubResource("SynthPhaseOscillator_0xm2m"), SubResource("SynthPhaseOscillator_1bvp3"), SubResource("SynthPhaseOscillator_7mycd")])
+"Frequency ADSR" = SubResource("SynthADSR_ig7tw")
+
+[sub_resource type="SynthNoiseOscillator" id="SynthNoiseOscillator_ig7tw"]
+"Noise Mix (W,P,B)" = Vector3(0.05, 0.1, 0)
+
+[resource]
+"Amplitude ADSR" = SubResource("SynthADSR_badm3")
+"Frequency ADSR" = SubResource("SynthADSR_ne5we")
+Oscillators = Array[SynthOscillator]([SubResource("SynthGroupOscillator_ig7tw"), SubResource("SynthNoiseOscillator_ig7tw")])
+Filters = Array[SynthFilter]([SubResource("SynthSVF_ig7tw")])

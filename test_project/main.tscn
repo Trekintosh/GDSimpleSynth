@@ -1,52 +1,17 @@
-[gd_scene format=3 uid="uid://hn8dh5y3yq6a"]
+[gd_scene format=3 uid="uid://ct1o4s7ol2yma"]
 
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
+[ext_resource type="SimpleSynthPatch" uid="uid://bxf7j6mnujq5l" path="res://big_boy_test_01.tres" id="2_0xm2m"]
 
-[sub_resource type="SynthADSR" id="SynthADSR_iv00o"]
-Attack = 0.1
-Decay = 0.2
-Sustain = 1.0
-Release = 1.0
+[sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
 
-[sub_resource type="SynthSVF" id="SynthSVF_ig7tw"]
-"Q Ratio (Resonance Factor)" = 0.6
-"Pass filter mix ratio (Low Pass, Band Pass, High Pass)" = Vector3(0.5, 1, 0)
-"Minimum Filter Frequency (hz)" = 100.0
-"Maximum Filter Frequency (hz)" = 4000.0
-
-[sub_resource type="SynthADSR" id="SynthADSR_nu4ry"]
-Attack = 0.5
-Decay = 0.5
-Sustain = 0.8
-Release = 1.0
-
-[sub_resource type="SynthADSR" id="SynthADSR_laglb"]
-Attack = 0.2
-Decay = 0.2
-Sustain = 1.0
-Release = 1.0
-
-[sub_resource type="SynthLFO" id="SynthLFO_3ngog"]
-
-[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_eql51"]
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_3ngog")
-"LFO Frequency span (hz)" = 10.0
-
-[sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_b5fn1"]
-"Amplitude ADSR" = SubResource("SynthADSR_iv00o")
-"Frequency ADSR" = SubResource("SynthADSR_nu4ry")
-Oscillators = Array[SynthOscillator]([SubResource("SynthPhaseOscillator_eql51")])
-Filters = Array[SynthFilter]([SubResource("SynthSVF_y4anh")])
-
-[sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_udegv"]
-
-[sub_resource type="SimpleSynthStream" id="SimpleSynthStream_p17bw"]
+[sub_resource type="SimpleSynthStream" id="SimpleSynthStream_hauwd"]
 "Sequencer Enabled" = false
-patch = SubResource("SimpleSynthPatch_b5fn1")
-"sequencer settings" = SubResource("SimpleSynthSequencerSettings_udegv")
+patch = ExtResource("2_0xm2m")
+"sequencer settings" = SubResource("SimpleSynthSequencerSettings_kvti0")
 
-[node name="Main" type="Node2D" unique_id=222085205]
+[node name="Main" type="Node2D" unique_id=87117732]
 script = ExtResource("1_ig7tw")
 
-[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=1223027107]
-stream = SubResource("SimpleSynthStream_p17bw")
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=636095637]
+stream = SubResource("SimpleSynthStream_hauwd")

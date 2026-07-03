@@ -59,11 +59,16 @@ void SynthNoiseOscillator::_bind_methods(){
 }
 
 
-float SynthPhaseOscillator::processLFO(){
-    if(!lfo.is_valid()){return 1.0f;} //if no LFO just bail.
+float SynthPhaseOscillator::processPitch(){
+    float lfoPitch = 0.0f;
+    if(lfo.is_valid()){lfoPitch = lfo->process();} //if no LFO then don't LFO.
+    lfoPitch *= lfo_depth;
+    float pitchBlendTotal = pitchBlend*pitchBlendRange;
+
+    float semitones = lfoPitch+semitone_offset+pitchBlendTotal;
+
     //Convert LFO result to semitones.
-    float semitone_ratio = std::pow(2.0f,(lfo->process() * lfo_depth) / 12.0f);
-    return semitone_ratio;
+    return std::pow(2.0f,semitones / 12.0f);
 }
 
 
@@ -71,7 +76,7 @@ float SynthPhaseOscillator::processLFO(){
 void SynthPhaseOscillator::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_freq","Oscillator Frequency (hz)"), &SynthPhaseOscillator::set_frequency);
     ClassDB::bind_method(D_METHOD("get_freq"), &SynthPhaseOscillator::get_frequency);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Sawtooth Oscillator Frequency (hz)"),"set_freq","get_freq");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Oscillator Frequency (hz)"),"set_freq","get_freq");
 
     ClassDB::bind_method(D_METHOD("set_wf","Waveform"), &SynthPhaseOscillator::set_waveform);
     ClassDB::bind_method(D_METHOD("get_wf"), &SynthPhaseOscillator::get_waveform);
@@ -84,8 +89,15 @@ void SynthPhaseOscillator::_bind_methods(){
     
     ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"), &SynthPhaseOscillator::set_lfo_depth);
     ClassDB::bind_method(D_METHOD("get_lfo_depth"), &SynthPhaseOscillator::get_lfo_depth);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO Frequency span (hz)"),"set_lfo_depth","get_lfo_depth");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO Frequency span (semitones)"),"set_lfo_depth","get_lfo_depth");
     
+    ClassDB::bind_method(D_METHOD("set_note","Note"), &SynthPhaseOscillator::set_note);
+    ClassDB::bind_method(D_METHOD("get_note"), &SynthPhaseOscillator::get_note);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Oscillator Note",PROPERTY_HINT_ENUM,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"),"set_note","get_note");
+
+    ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthPhaseOscillator::set_octave);
+    ClassDB::bind_method(D_METHOD("get_oct"), &SynthPhaseOscillator::get_octave);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Octave",godot::PROPERTY_HINT_RANGE,"1,8,1"),"set_oct","get_oct");
 }
     
 
@@ -103,14 +115,15 @@ void SynthGroupOscillator::note_off(){
     // print_line("bye");
 }
 
-// int counter = 0;
+int counter = 0;
 // float biggestOutput = 0.0f;
 float SynthGroupOscillator::process(){
     float output = 0.0f;
     float adsrResponse = frequencyADSR->process(1);
+    float adsrSemitones =  std::pow(2.0f,(Math::lerp(min_semitones,max_semitones,adsrResponse)) / 12.0f);
     
     bool deactivate = true;
-    if(adsrResponse>=0.0f){
+    if(adsrResponse>0.0f){
         deactivate = false;
     }
     //First iterate through the oscillators and get the results
@@ -120,8 +133,7 @@ float SynthGroupOscillator::process(){
             osc->note_off();
         }
         else{
-            float newFreqRatio = Math::lerp(1.0f,minimumFrequencyRatio,adsrResponse);
-            osc->frequency_offset = newFreqRatio;
+            osc->semitone_offset = adsrSemitones;
             output+=osc->process();
         }
     }
@@ -133,15 +145,19 @@ float SynthGroupOscillator::process(){
         output/=oscillators.size();
     }
     // if(abs(output)>biggestOutput){biggestOutput = abs(output);}
-    // if(counter%5000==1 && active){print_line(biggestOutput);}
-    // counter++;
+    if(counter%5000==1 && active){print_line(adsrSemitones);}
+    counter++;
     return output;
 }
 
 void SynthGroupOscillator::_bind_methods(){
-    ClassDB::bind_method(D_METHOD("set_min_freq","Minimum Oscillator Frequency Ratio"), &SynthGroupOscillator::set_minimum_frequency_ratio);
-    ClassDB::bind_method(D_METHOD("get_min_freq"), &SynthGroupOscillator::get_minimum_frequency_ratio);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Minimum Oscillator frequency ratio at the bottom of the ADSR"),"set_min_freq","get_min_freq");
+    ClassDB::bind_method(D_METHOD("set_min_adsr_semi","Minimum ADSR Semitones"), &SynthGroupOscillator::set_min_semitones);
+    ClassDB::bind_method(D_METHOD("get_min_adsr_semi"), &SynthGroupOscillator::get_min_semitones);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Minimum Oscillator frequency offset in semitones"),"set_min_adsr_semi","get_min_adsr_semi");
+    
+    ClassDB::bind_method(D_METHOD("set_max_adsr_semi","Maximum ADSR Semitones"), &SynthGroupOscillator::set_max_semitones);
+    ClassDB::bind_method(D_METHOD("get_max_adsr_semi"), &SynthGroupOscillator::get_max_semitones);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Maximum Oscillator frequency offset in semitones"),"set_max_adsr_semi","get_max_adsr_semi");
     
     ClassDB::bind_method(D_METHOD("set_oscillators","Oscillator Array"),&SynthGroupOscillator::set_oscillators);
     ClassDB::bind_method(D_METHOD("get_oscillators"),&SynthGroupOscillator::get_oscillators);
