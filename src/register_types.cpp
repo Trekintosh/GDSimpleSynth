@@ -27,6 +27,7 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level)
 	GDREGISTER_CLASS(SynthGroupOscillator)
 	GDREGISTER_ABSTRACT_CLASS(SynthFilter)
 	GDREGISTER_CLASS(SynthSVF)
+	GDREGISTER_CLASS(SynthResonatorFilter)
 	GDREGISTER_CLASS(SimpleSynthSequencerSettings)
 }
 

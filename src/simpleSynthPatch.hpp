@@ -1,5 +1,6 @@
 #pragma once
 #include "godot_cpp/core/math_defs.hpp"
+#include "godot_cpp/variant/packed_float32_array.hpp"
 #define _USE_MATH_DEFINES
 #include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/classes/resource.hpp"
@@ -82,11 +83,14 @@ private:
 class SynthOscillator: public godot::Resource{
     GDCLASS(SynthOscillator, godot::Resource)
 public:
-    virtual float process() = 0; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
+    virtual float process(){return 0.0f;}; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
     bool active = false;
     virtual void note_on();
     virtual void note_off();
     float semitone_offset = 0.0f;
+    float gain = 1.0f;
+    void set_gain(const float x){gain = x;}
+    float get_gain() const {return gain;}
 protected:
     static void _bind_methods();
 };
@@ -244,23 +248,18 @@ class SynthFilter: public godot::Resource{
 protected:
     static void _bind_methods();
 public:
-    float minFrequencyHz = 1000.0f;
-    float maxFrequencyHz = 5000.0f;
-    float frequencyOffset = 0.0f;
-    void setMinFreq(const float newFreq){
-        minFrequencyHz = newFreq;
-    }
-    void setMaxFreq(const float newFreq){
-        maxFrequencyHz = newFreq;
-    }
-    float getMinFreq(){
-        return minFrequencyHz;
-    }
-    float getMaxFreq(){
-        return maxFrequencyHz;
-    }
+    float cutoff = 1000.0f;
+    float envelopeAmount = 12.0f; //Semitones
+    float gain = 1.0f;
 
-    virtual float process(float input,float envelopeRatio) = 0;
+    virtual void set_cutoff(const float newFreq){cutoff = newFreq;}
+    virtual void set_envelope_amount(const float newFreq){envelopeAmount = newFreq;}
+    virtual float get_cutoff(){return cutoff;}
+    virtual float get_envelope_amount(){return envelopeAmount;}
+    void set_gain(const float x){gain = x;}
+    float get_gain() const{return gain;}
+
+    virtual float process(float input,float envelopeRatio){return input*envelopeAmount*envelopeRatio;};
 };
 
 class SynthSVF : public SynthFilter{ // CODE FROM https://gist.github.com/hollance/2891d89c57adc71d9560bcf0e1e55c4b - THANKS!!
@@ -269,7 +268,9 @@ protected:
     static void _bind_methods();
 public:
     float Q = 1.0;
+    
     godot::Vector3 pass_mix = godot::Vector3(0.0f,1.0f,0.0f); //Low Pass, Band Pass, High Pass, respectively. Band Pass full by default.
+    
     void setCoefficients(float freq, float newQ) noexcept{
         g = std::tan(Math_PI * freq / sampleRate);
         k = 1.0 / newQ;
@@ -292,9 +293,11 @@ public:
     };
 
     float process(float v0, float envelopeRatio) override{
-        float cutoff = minFrequencyHz*std::pow(maxFrequencyHz/minFrequencyHz,envelopeRatio); //EXPONENTIAL GAIN -- TODO: CHECK IF THIS SUCKS ASS
-        cutoff *= 1.0+frequencyOffset;
-        setCoefficients(cutoff, Q);
+        float semitones = envelopeAmount*envelopeRatio;//Ratio is 0-1.0, envelopeAmount is in semitones
+        float semitonesRatio = std::pow(2.0f,semitones/12.0f);
+        // float cutoff = minFrequencyHz*std::pow(maxFrequencyHz/minFrequencyHz,envelopeRatio); //EXPONENTIAL GAIN -- TODO: CHECK IF THIS SUCKS ASS
+        float finalCutoff = cutoff*semitonesRatio;
+        setCoefficients(finalCutoff, Q);
         float v3 = v0 - ic2eq;
         float v1 = a1 * ic1eq + a2 * v3;
         float v2 = ic2eq + a2 * ic1eq + a3 * v3;
@@ -310,6 +313,42 @@ private:
     float g, k, a1, a2, a3;  // filter coefficients
     float ic1eq, ic2eq;      // internal state
     float sampleRate = (float)godot::AudioServer::get_singleton()->get_mix_rate();
+
+};
+
+//Resonator container for SVFs
+class SynthResonatorFilter: public SynthFilter{
+    GDCLASS(SynthResonatorFilter,SynthFilter);
+protected:
+    static void _bind_methods();
+public:
+    godot::TypedArray<SynthFilter> filters;
+    godot::PackedFloat32Array filterResonanceRatio;
+
+    float fallbackFrequencyRatio = 2.0;
+
+    float process(float input,float envelopeRatio) override;
+
+
+    void set_filters(const godot::TypedArray<SynthFilter> newFilters){
+        filters = newFilters;
+        set_cutoff(cutoff);}//Force recalculate of resonance ratios.
+    
+    godot::TypedArray<SynthFilter> get_filters() const{return filters;}
+
+    void set_filter_resonance_ratios(const godot::PackedFloat32Array x){
+        filterResonanceRatio = x;
+        set_cutoff(cutoff);}//Force recalculate of resonance ratios.
+
+    godot::PackedFloat32Array get_filter_resonance_ratios()const{return filterResonanceRatio;}
+
+    void set_fallback_frequency_ratio(const float x){
+        fallbackFrequencyRatio = x;
+    set_cutoff(cutoff);}//Force recalculate of resonance ratios.
+
+    float get_fallback_frequency_ratio()const{return fallbackFrequencyRatio;}
+
+    void set_cutoff(const float newFreq) override;
 
 };
 
