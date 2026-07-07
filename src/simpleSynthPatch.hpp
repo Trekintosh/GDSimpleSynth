@@ -157,8 +157,8 @@ public:
     int octave = 4;
 
     void updatePhase() {
-        float pitchSemitones = processPitch();
-        phase += (frequency+pitchSemitones)/sampleRate;
+        float pitchRatio = processPitch();
+        phase += (frequency*pitchRatio)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
         }
@@ -201,7 +201,6 @@ public:
     int get_note()const{return note;}
     void set_octave(const int new_octave){octave = new_octave;updateFrequency();}
     int get_octave()const{return octave;}
-    
 
 };
 

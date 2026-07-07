@@ -58,7 +58,7 @@ void SynthNoiseOscillator::_bind_methods(){
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3,"Noise Mix (W,P,B)"),"set_noise_mix","get_noise_mix");
 }
 
-
+int counter2 = 0;
 float SynthPhaseOscillator::processPitch(){
     float lfoPitch = 0.0f;
     if(lfo.is_valid()){lfoPitch = lfo->process();} //if no LFO then don't LFO.
@@ -66,7 +66,8 @@ float SynthPhaseOscillator::processPitch(){
     float pitchBlendTotal = pitchBlend*pitchBlendRange;
 
     float semitones = lfoPitch+semitone_offset+pitchBlendTotal;
-
+    counter2++;
+    if(counter2%1000==1){print_line(semitones);}
     //Convert LFO result to semitones.
     return std::pow(2.0f,semitones / 12.0f);
 }
@@ -120,7 +121,7 @@ int counter = 0;
 float SynthGroupOscillator::process(){
     float output = 0.0f;
     float adsrResponse = frequencyADSR->process(1);
-    float adsrSemitones =  std::pow(2.0f,(Math::lerp(min_semitones,max_semitones,adsrResponse)) / 12.0f);
+    float adsrSemitones =  Math::lerp(min_semitones,max_semitones,adsrResponse);
     
     bool deactivate = true;
     if(adsrResponse>0.0f){
@@ -145,8 +146,8 @@ float SynthGroupOscillator::process(){
         output/=oscillators.size();
     }
     // if(abs(output)>biggestOutput){biggestOutput = abs(output);}
-    if(counter%5000==1 && active){print_line(adsrSemitones);}
-    counter++;
+    // if(counter%5000==1 && active){print_line(adsrSemitones);}
+    // counter++;
     return output;
 }
 
