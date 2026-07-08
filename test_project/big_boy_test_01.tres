@@ -6,16 +6,54 @@ Decay = 0.2
 Sustain = 1.0
 Release = 1.0
 
+[sub_resource type="SynthSVF" id="SynthSVF_658k0"]
+"Filter Cutoff Frequency (hz)" = 310.0
+
 [sub_resource type="SynthADSR" id="SynthADSR_ne5we"]
-Attack = 0.05
-Decay = 0.2
-Sustain = 0.9
+Attack = 0.5
+Decay = 0.1
+Sustain = 0.7
 Release = 1.0
 
 [sub_resource type="SynthNoiseOscillator" id="SynthNoiseOscillator_658k0"]
 "Noise Mix (W,P,B)" = Vector3(0, 1, 0)
+Gain = 0.2
+
+[sub_resource type="SynthLFO" id="SynthLFO_r5812"]
+"LFO rate (hz)" = 110.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_658k0"]
+"Oscillator Frequency (hz)" = 261.62555
+"Waveform Shape" = 3
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_r5812")
+"LFO Frequency span (semitones)" = 2.0
+"Oscillator Note" = 0
+Gain = 0.15
+
+[sub_resource type="SynthLFO" id="SynthLFO_658k0"]
+"LFO rate (hz)" = 250.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_lxtvi"]
+"Oscillator Frequency (hz)" = 329.62756
+"Waveform Shape" = 3
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_658k0")
+"LFO Frequency span (semitones)" = 2.0
+"Oscillator Note" = 4
+Gain = 0.15
+
+[sub_resource type="SynthLFO" id="SynthLFO_s28nx"]
+"LFO rate (hz)" = 145.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_1catg"]
+"Oscillator Frequency (hz)" = 391.99542
+"Waveform Shape" = 3
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_s28nx")
+"LFO Frequency span (semitones)" = 2.0
+"Oscillator Note" = 7
+Gain = 0.15
 
 [resource]
 "Amplitude ADSR" = SubResource("SynthADSR_badm3")
 "Frequency ADSR" = SubResource("SynthADSR_ne5we")
-Oscillators = Array[SynthOscillator]([SubResource("SynthNoiseOscillator_658k0")])
+Oscillators = Array[SynthOscillator]([SubResource("SynthNoiseOscillator_658k0"), SubResource("SynthPhaseOscillator_658k0"), SubResource("SynthPhaseOscillator_lxtvi"), SubResource("SynthPhaseOscillator_1catg")])
+Filters = Array[SynthFilter]([SubResource("SynthSVF_658k0")])

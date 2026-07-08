@@ -32,8 +32,8 @@ void SynthOscillator::_bind_methods(){
     //OTHERWISE_BLANK BECAUSE IT IS AN ABSTRACT!
 }
 
-static float peak = 0.0f;
-int counter = 0;
+// static float peak = 0.0f;
+// int counter = 0;
 float SynthNoiseOscillator::process(){
     white = ((float)rand()/RAND_MAX)*2.0f-1.0f;
     
@@ -46,12 +46,14 @@ float SynthNoiseOscillator::process(){
     pink_b2 = 0.57000 * pink_b2 + white * 1.0526913;
     pink = pink_b0 + pink_b1 + pink_b2 + white * 0.1848;
 
+    pink *= 0.12f; //normalize pink noise - number pulled out of slopGeminiPT's ass but seems to work?
+
     float out = white*noise_mix.x + pink*noise_mix.y + brown*noise_mix.z;
 
-    peak = MAX(peak, fabs(out));
+    // peak = MAX(peak, fabs(out));
 
-    if(counter++ % 5000 == 0)
-        print_line(peak);
+    // if(counter++ % 5000 == 0)
+    //     print_line(peak);
 
     return out;
     // return white*noise_mix.x+pink*noise_mix.y+brown*noise_mix.z;
@@ -402,7 +404,7 @@ float SimpleSynthPatch::process(){
     for(int i=0; i<filters.size();i++){
         Ref<SynthFilter> filter = filters[i];
         // filter->cutoff = frequencyOffset; //Apply frequency offset for randomness in sequencer (or in general) //TODO: Replace this with something else for the sequencer randomness.
-        output = filter->process(output,freqEnvelope); //REMEMBER: FILTERS HAVE THEIR OWN FREQUENCY GATES. WE ONLY PASS A RATIO!
+        output = filter->process(output,freqEnvelope)*filter->gain; //REMEMBER: FILTERS HAVE THEIR OWN FREQUENCY GATES. WE ONLY PASS A RATIO!
     }
     output *= ampADSR->process();
     output *= (1.0f-amplitudeOffset);
