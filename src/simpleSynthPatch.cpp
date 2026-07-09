@@ -82,7 +82,7 @@ void SynthNoiseOscillator::_bind_methods(){
 }
 
 // int counter2 = 0;
-float SynthPhaseOscillator::processPitch(){
+float SynthFrequencyOscillator::processPitch(){
     float lfoPitch = 0.0f;
     if(lfo.is_valid()){lfoPitch = lfo->process();} //if no LFO then don't LFO.
     lfoPitch *= lfo_depth;
@@ -97,38 +97,58 @@ float SynthPhaseOscillator::processPitch(){
 
 
 
-void SynthPhaseOscillator::_bind_methods(){
-    ClassDB::bind_method(D_METHOD("set_freq","Oscillator Frequency (hz)"), &SynthPhaseOscillator::set_frequency);
-    ClassDB::bind_method(D_METHOD("get_freq"), &SynthPhaseOscillator::get_frequency);
+void SynthFrequencyOscillator::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_freq","Oscillator Frequency (hz)"), &SynthFrequencyOscillator::set_frequency);
+    ClassDB::bind_method(D_METHOD("get_freq"), &SynthFrequencyOscillator::get_frequency);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Oscillator Frequency (hz)"),"set_freq","get_freq");
 
+    ClassDB::bind_method(D_METHOD("set_lfo","LFO"), &SynthFrequencyOscillator::set_lfo);
+    ClassDB::bind_method(D_METHOD("get_lfo"),&SynthFrequencyOscillator::get_lfo);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthLFO"), "set_lfo", "get_lfo");
+    
+    ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"), &SynthFrequencyOscillator::set_lfo_depth);
+    ClassDB::bind_method(D_METHOD("get_lfo_depth"), &SynthFrequencyOscillator::get_lfo_depth);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO Frequency span (semitones)"),"set_lfo_depth","get_lfo_depth");
+    
+    ClassDB::bind_method(D_METHOD("set_note","Note"), &SynthFrequencyOscillator::set_note);
+    ClassDB::bind_method(D_METHOD("get_note"), &SynthFrequencyOscillator::get_note);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Oscillator Note",PROPERTY_HINT_ENUM,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"),"set_note","get_note");
+
+    ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthFrequencyOscillator::set_octave);
+    ClassDB::bind_method(D_METHOD("get_oct"), &SynthFrequencyOscillator::get_octave);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Octave",godot::PROPERTY_HINT_RANGE,"1,8,1"),"set_oct","get_oct");
+
+    ClassDB::bind_method(D_METHOD("set_bend_range","Octave"), &SynthFrequencyOscillator::set_bend_range);
+    ClassDB::bind_method(D_METHOD("get_bend_range"), &SynthFrequencyOscillator::get_bend_range);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Pitch Bend Range (semitones)"),"set_bend_range","get_bend_range");
+}   
+
+void SynthPhaseOscillator::_bind_methods(){    
     ClassDB::bind_method(D_METHOD("set_wf","Waveform"), &SynthPhaseOscillator::set_waveform);
     ClassDB::bind_method(D_METHOD("get_wf"), &SynthPhaseOscillator::get_waveform);
     ADD_PROPERTY(PropertyInfo(Variant::INT,"Waveform Shape",PROPERTY_HINT_ENUM,"Sine,Square,Triangle,Sawtooth,Pulse"),"set_wf","get_wf");
+}
+
+void SynthResonantOscillator::initialize(SynthPatchLocals *l){
+    synthLocals = l;
+    if(excitor.is_valid()){excitor->initialize(l);}
+}
+
+void SynthResonantOscillator::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_excitor","excitor oscillator"), &SynthResonantOscillator::set_excitor);
+    ClassDB::bind_method(D_METHOD("get_excitor"),&SynthResonantOscillator::get_excitor);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Excitor Oscillator",PROPERTY_HINT_RESOURCE_TYPE,"SynthOscillator"), "set_excitor", "get_excitor");
 
 
-    ClassDB::bind_method(D_METHOD("set_lfo","LFO"), &SynthPhaseOscillator::set_lfo);
-    ClassDB::bind_method(D_METHOD("get_lfo"),&SynthPhaseOscillator::get_lfo);
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthLFO"), "set_lfo", "get_lfo");
-    
-    ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"), &SynthPhaseOscillator::set_lfo_depth);
-    ClassDB::bind_method(D_METHOD("get_lfo_depth"), &SynthPhaseOscillator::get_lfo_depth);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO Frequency span (semitones)"),"set_lfo_depth","get_lfo_depth");
-    
-    ClassDB::bind_method(D_METHOD("set_note","Note"), &SynthPhaseOscillator::set_note);
-    ClassDB::bind_method(D_METHOD("get_note"), &SynthPhaseOscillator::get_note);
-    ADD_PROPERTY(PropertyInfo(Variant::INT,"Oscillator Note",PROPERTY_HINT_ENUM,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"),"set_note","get_note");
+    ClassDB::bind_method(D_METHOD("set_decay","Decay Time"),&SynthResonantOscillator::set_decay_time);
+    ClassDB::bind_method(D_METHOD("get_decay"),&SynthResonantOscillator::get_decay_time);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Decay Time(seconds)"),"set_decay","get_decay");
+    ClassDB::bind_method(D_METHOD("set_excitation_strength", "Excitation Strength"), &SynthResonantOscillator::set_excitation_strength);
+    ClassDB::bind_method(D_METHOD("get_excitation_strength"), &SynthResonantOscillator::get_excitation_strength);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Excitation Strength"),"set_excitation_strength","get_excitation_strength");
 
-    ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthPhaseOscillator::set_octave);
-    ClassDB::bind_method(D_METHOD("get_oct"), &SynthPhaseOscillator::get_octave);
-    ADD_PROPERTY(PropertyInfo(Variant::INT,"Octave",godot::PROPERTY_HINT_RANGE,"1,8,1"),"set_oct","get_oct");
+}
 
-    ClassDB::bind_method(D_METHOD("set_bend_range","Octave"), &SynthPhaseOscillator::set_bend_range);
-    ClassDB::bind_method(D_METHOD("get_bend_range"), &SynthPhaseOscillator::get_bend_range);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Pitch Bend Range (semitones)"),"set_bend_range","get_bend_range");
-
-}   
-    
 void SynthGroupOscillator::initialize(SynthPatchLocals *l){
     synthLocals = l;
     for(auto v : oscillators){
@@ -283,30 +303,29 @@ void SynthHarmonicParallelFilter::_bind_methods(){
 
 }
 
-void SynthResonator::_bind_methods(){
-    ClassDB::bind_method(D_METHOD("set_decay","Decay"),&SynthResonator::set_decay);
-    ClassDB::bind_method(D_METHOD("get_decay"),&SynthResonator::get_decay);
+void SynthResonantFilter::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_decay","Decay"),&SynthResonantFilter::set_decay);
+    ClassDB::bind_method(D_METHOD("get_decay"),&SynthResonantFilter::get_decay);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Resonator Decay (0.9-1.0)"),"set_decay","get_decay");
-    ClassDB::bind_method(D_METHOD("set_cutoff","Resonance(hz)"), &::SynthResonator::set_cutoff);
-    ClassDB::bind_method(D_METHOD("set_excitation_strength", "Excitation Strength"), &SynthResonator::set_excitation_strength);
-    ClassDB::bind_method(D_METHOD("get_excitation_strength"), &SynthResonator::get_excitation_strength);
-    ADD_PROPERTY(
-        PropertyInfo(Variant::FLOAT, "Excitation Strength"),"set_excitation_strength","get_excitation_strength");
+    ClassDB::bind_method(D_METHOD("set_cutoff","Resonance(hz)"), &::SynthResonantFilter::set_cutoff);
+    ClassDB::bind_method(D_METHOD("set_excitation_strength", "Excitation Strength"), &SynthResonantFilter::set_excitation_strength);
+    ClassDB::bind_method(D_METHOD("get_excitation_strength"), &SynthResonantFilter::get_excitation_strength);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Excitation Strength"),"set_excitation_strength","get_excitation_strength");
 
-    ClassDB::bind_method(D_METHOD("set_wet", "Wet"), &SynthResonator::set_wet);
-    ClassDB::bind_method(D_METHOD("get_wet"), &SynthResonator::get_wet);
+    ClassDB::bind_method(D_METHOD("set_wet", "Wet"), &SynthResonantFilter::set_wet);
+    ClassDB::bind_method(D_METHOD("get_wet"), &SynthResonantFilter::get_wet);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Wet",PROPERTY_HINT_RANGE, "0,1,0.01"),"set_wet","get_wet");
 
-    ClassDB::bind_method(D_METHOD("set_dry", "Dry"), &SynthResonator::set_dry);
-    ClassDB::bind_method(D_METHOD("get_dry"), &SynthResonator::get_dry);
+    ClassDB::bind_method(D_METHOD("set_dry", "Dry"), &SynthResonantFilter::set_dry);
+    ClassDB::bind_method(D_METHOD("get_dry"), &SynthResonantFilter::get_dry);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Dry",PROPERTY_HINT_RANGE, "0,1,0.01"),"set_dry","get_dry");
 
-    ClassDB::bind_method(D_METHOD("set_note","Note"), &SynthResonator::set_note);
-    ClassDB::bind_method(D_METHOD("get_note"), &SynthResonator::get_note);
+    ClassDB::bind_method(D_METHOD("set_note","Note"), &SynthResonantFilter::set_note);
+    ClassDB::bind_method(D_METHOD("get_note"), &SynthResonantFilter::get_note);
     ADD_PROPERTY(PropertyInfo(Variant::INT,"Resonator Note",PROPERTY_HINT_ENUM,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"),"set_note","get_note");
 
-    ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthResonator::set_octave);
-    ClassDB::bind_method(D_METHOD("get_oct"), &SynthResonator::get_octave);
+    ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthResonantFilter::set_octave);
+    ClassDB::bind_method(D_METHOD("get_oct"), &SynthResonantFilter::get_octave);
     ADD_PROPERTY(PropertyInfo(Variant::INT,"Octave",godot::PROPERTY_HINT_RANGE,"1,8,1"),"set_oct","get_oct");
 
 }

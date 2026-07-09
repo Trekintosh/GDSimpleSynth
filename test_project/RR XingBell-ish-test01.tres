@@ -1,7 +1,4 @@
-[gd_scene format=3 uid="uid://ct1o4s7ol2yma"]
-
-[ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
-[ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
+[gd_resource type="SimpleSynthPatch" format=3 uid="uid://bijihfx86yb7y"]
 
 [sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_0xm2m"]
 "Waveform Shape" = 4
@@ -14,7 +11,7 @@ Gain = 0.1
 [sub_resource type="SynthResonantOscillator" id="SynthResonantOscillator_0xm2m"]
 "Excitor Oscillator" = SubResource("SynthPhaseOscillator_0xm2m")
 "Decay Time(seconds)" = 3.0
-"Excitation Strength" = 2.0
+"Excitation Strength" = 5.0
 "Oscillator Frequency (hz)" = 2093.0044
 "LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_0xm2m")
 "LFO Frequency span (semitones)" = 1.0
@@ -32,35 +29,12 @@ Gain = 0.1
 [sub_resource type="SynthResonantOscillator" id="SynthResonantOscillator_1bvp3"]
 "Excitor Oscillator" = SubResource("SynthPhaseOscillator_h2yge")
 "Decay Time(seconds)" = 3.0
-"Excitation Strength" = 2.0
+"Excitation Strength" = 5.0
 "Oscillator Frequency (hz)" = 2793.826
 "LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_h2yge")
 "LFO Frequency span (semitones)" = 1.0
 "Oscillator Note" = 5
 Octave = 7
 
-[sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_0xm2m"]
+[resource]
 Oscillators = Array[SynthOscillator]([SubResource("SynthResonantOscillator_0xm2m"), SubResource("SynthResonantOscillator_1bvp3")])
-
-[sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
-
-[sub_resource type="SimpleSynthStream" id="SimpleSynthStream_hauwd"]
-"Sequencer Enabled" = false
-patch = SubResource("SimpleSynthPatch_0xm2m")
-"sequencer settings" = SubResource("SimpleSynthSequencerSettings_kvti0")
-
-[node name="Main" type="Node2D" unique_id=87117732]
-script = ExtResource("1_ig7tw")
-
-[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=636095637]
-stream = SubResource("SimpleSynthStream_hauwd")
-
-[node name="Spectrum" type="Node2D" parent="." unique_id=1037692275]
-script = ExtResource("2_0xm2m")
-
-[node name="CheckBox" type="CheckBox" parent="." unique_id=1902408015]
-offset_right = 24.0
-offset_bottom = 24.0
-text = "Hold note"
-
-[connection signal="toggled" from="CheckBox" to="." method="_on_check_box_toggled"]

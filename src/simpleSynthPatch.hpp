@@ -136,37 +136,115 @@ protected:
     static void _bind_methods();
 };
 
-
-class SynthPhaseOscillator: public SynthOscillator{
-    GDCLASS(SynthPhaseOscillator,SynthOscillator)
+class SynthFrequencyOscillator: public SynthOscillator{
+    GDCLASS(SynthFrequencyOscillator, SynthOscillator)
 protected:
     static void _bind_methods();
-protected:
     float phase = 0.0f;
     godot::Ref<SynthLFO> lfo;
     float lfo_depth = 0.0f;
     float pitchbendRange = 0.0f;
-    int duty_cycle = 1;//The duty cycle of the pulse oscillator. TODO - Set up _validate_property to hide this if the oscillator isn't set to pulse.
-    bool has_fired = false;//for pulse oscillator - maybe useful for other weird kinds?
-    bool one_shot = false;// EXPOSE THIS ONE FOR PULSE RESONATOR
-    int one_shot_cooldown = sampleRate; //Cooldown on one-shot.
-    virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD.
-
-
+    virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD
+    
     //setgets
     void set_lfo(const godot::Ref<SynthLFO> newlfo){lfo = newlfo;}
     godot::Ref<SynthLFO> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
     float get_lfo_depth() const{return lfo_depth;}
-private:
+
+public:
     float frequency = 440.0f; 
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
-    int one_shot_counter = 0;
-public:
+
+    //For handling notes.
+    void updateFrequency(){
+        frequency = SynthHelper::note_to_frequency(note, octave);
+    }
+    void set_note(const int new_note){note = static_cast<SynthHelper::Note>(new_note);updateFrequency();}
+    int get_note()const{return note;}
+    void set_octave(const int new_octave){octave = new_octave;updateFrequency();}
+    int get_octave()const{return octave;}
+
+    void set_bend_range(const float x){pitchbendRange = x;}
+    float get_bend_range() const {return pitchbendRange;}
     SynthHelper::Note note = SynthHelper::A; //TODO - Set up _validate_property to hide this if the oscillator IS set to pulse.
     int octave = 4; //TODO - Set up _validate_property to hide this if the oscillator IS set to pulse.
 
+    void set_frequency(const float newFreq){frequency = newFreq;};
+    float get_frequency() const{return frequency;};
+};
+
+class SynthResonantOscillator: public SynthFrequencyOscillator{
+    GDCLASS(SynthResonantOscillator,SynthFrequencyOscillator)
+protected:
+    static void _bind_methods();
+private:
+    //State variables
+    float x = 0.0f;
+    float y = 0.0f;
+
+    //actual decay
+    float decay = 0.995f;
+
+public:
+    virtual void initialize(SynthPatchLocals *locals) override;
+    float decay_time = 0.5f;
+    float excitation_strength = 1.0;
+    godot::Ref<SynthOscillator> excitor;
+
+    float process() override
+    {
+        float in = 0.0f;
+
+        if (excitor.is_valid()){
+            excitor->active = active;
+            in = excitor->process()*excitor->gain;
+        }
+        
+        x += in * excitation_strength;
+
+        float pitchRatio = processPitch();
+        
+        float theta = Math_TAU * (frequency*pitchRatio) / sampleRate;
+
+        float c = std::cos(theta);
+        float s = std::sin(theta);
+
+        float nx = c*x - s*y;
+        float ny = s*x + c*y;
+
+        x = nx * decay;
+        y = ny * decay;
+
+        return x;
+    }
+
+    void set_decay_time(const float x){decay_time = x;
+        decay = std::exp(std::log(0.001f) / (decay_time * sampleRate));}
+    float get_decay_time() const {return decay_time;}
+
+    void set_excitation_strength(const float x) {excitation_strength = x;}
+    float get_excitation_strength() const {return excitation_strength;}
+    
+    void set_excitor(const godot::Ref<SynthOscillator> x){excitor = x;}
+    godot::Ref<SynthOscillator> get_excitor() const {return excitor;}
+
+};
+
+class SynthPhaseOscillator: public SynthFrequencyOscillator{
+    GDCLASS(SynthPhaseOscillator,SynthFrequencyOscillator)
+protected:
+    static void _bind_methods();
+protected:
+    int duty_cycle = 1;//The duty cycle of the pulse oscillator. TODO - Set up _validate_property to hide this if the oscillator isn't set to pulse.
+    bool has_fired = false;//for pulse oscillator - maybe useful for other weird kinds?
+    bool one_shot = false;// EXPOSE THIS ONE FOR PULSE RESONATOR
+    int one_shot_cooldown = sampleRate; //Cooldown on one-shot.
+
+private:
+    int one_shot_counter = 0;
+public:
     void updatePhase() {
         float pitchRatio = processPitch();
         phase += (frequency*pitchRatio)/sampleRate;
@@ -209,25 +287,10 @@ public:
         }
     }
 
-    //For handling notes.
-    void updateFrequency(){
-        frequency = SynthHelper::note_to_frequency(note, octave);
-    }
-    
     //Setgets
     void set_waveform(const int newForm){waveform = static_cast<wf>(newForm);;}
     int get_waveform(){return waveform;}
-    void set_frequency(const float newFreq){frequency = newFreq;};
-    float get_frequency() const{return frequency;};
     
-    void set_note(const int new_note){note = static_cast<SynthHelper::Note>(new_note);updateFrequency();}
-    int get_note()const{return note;}
-    void set_octave(const int new_octave){octave = new_octave;updateFrequency();}
-    int get_octave()const{return octave;}
-
-    void set_bend_range(const float x){pitchbendRange = x;}
-    float get_bend_range() const {return pitchbendRange;}
-
 };
 
 
@@ -387,8 +450,8 @@ public:
 };
 
 //Resonator as a filter
-class SynthResonator: public SynthFilter{
-    GDCLASS(SynthResonator,SynthFilter)
+class SynthResonantFilter: public SynthFilter{
+    GDCLASS(SynthResonantFilter,SynthFilter)
 protected:
     // int counter = 0;
     static void _bind_methods();
