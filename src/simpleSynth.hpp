@@ -90,7 +90,7 @@ protected:
 public:
     const SimpleSynthStream *myStream = nullptr;
     void set_stream(const SimpleSynthStream *p_stream) {
-        godot::print_line(p_stream);
+        // godot::print_line(p_stream);
         myStream = p_stream;
     }
 
@@ -111,7 +111,9 @@ public:
     //Mandatory overrides
     int get_loop_count() const{return total_notes;};
     double _get_playback_position() const override{return 0.0;};
-    void _start(double p_from_pos = 0.0) override{return;};
+    void _start(double p_from_pos = 0.0) override{
+        patch->initialize();
+        return;};
     void _stop() override{return;}
 
 

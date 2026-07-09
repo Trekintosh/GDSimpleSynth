@@ -1,13 +1,32 @@
 [gd_scene format=3 uid="uid://ct1o4s7ol2yma"]
 
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
-[ext_resource type="SimpleSynthPatch" uid="uid://bxf7j6mnujq5l" path="res://big_boy_test_01.tres" id="2_0xm2m"]
+[ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
+
+[sub_resource type="SynthResonator" id="SynthResonator_0xm2m"]
+"Resonator Decay (0.9-1.0)" = 5.0
+"Excitation Strength" = 0.1
+"Resonator Note" = 0
+"Filter Cutoff Frequency (hz)" = 261.62555
+
+[sub_resource type="SynthNoiseOscillator" id="SynthNoiseOscillator_0xm2m"]
+"Noise Mix (W,P,B)" = Vector3(0, 1, 0)
+Gain = 0.0
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_j3pel"]
+"Oscillator Frequency (hz)" = 1.0
+"Waveform Shape" = 4
+"Oscillator Note" = 0
+
+[sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_j3pel"]
+Oscillators = Array[SynthOscillator]([SubResource("SynthNoiseOscillator_0xm2m"), SubResource("SynthPhaseOscillator_j3pel")])
+Filters = Array[SynthFilter]([SubResource("SynthResonator_0xm2m")])
 
 [sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
 
 [sub_resource type="SimpleSynthStream" id="SimpleSynthStream_hauwd"]
 "Sequencer Enabled" = false
-patch = ExtResource("2_0xm2m")
+patch = SubResource("SimpleSynthPatch_j3pel")
 "sequencer settings" = SubResource("SimpleSynthSequencerSettings_kvti0")
 
 [node name="Main" type="Node2D" unique_id=87117732]
@@ -15,3 +34,13 @@ script = ExtResource("1_ig7tw")
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="." unique_id=636095637]
 stream = SubResource("SimpleSynthStream_hauwd")
+
+[node name="Spectrum" type="Node2D" parent="." unique_id=1037692275]
+script = ExtResource("2_0xm2m")
+
+[node name="CheckBox" type="CheckBox" parent="." unique_id=1902408015]
+offset_right = 24.0
+offset_bottom = 24.0
+text = "Hold note"
+
+[connection signal="toggled" from="CheckBox" to="." method="_on_check_box_toggled"]

@@ -1,4 +1,5 @@
 #pragma once
+#include "SynthHelper.hpp"
 #include "godot_cpp/core/math_defs.hpp"
 #include "godot_cpp/variant/packed_float32_array.hpp"
 #define _USE_MATH_DEFINES
@@ -10,11 +11,20 @@
 #include "godot_cpp/classes/audio_server.hpp"
 
 
+//struct that holds any variables that need to be referenced by anything else in the patch regardless of depth and such.
+struct SynthPatchLocals{
+    float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
+    float pitchBend = 0;
+};
+
+
 //This is a class to hold ADSR stuff
 class SynthADSR: public godot::Resource {
     GDCLASS(SynthADSR,Resource)
     //ADR ARE IN SAMPLES, S IS A FLOAT BECUASE IT'S A PERCENTAGE
 private:
+    SynthPatchLocals *synthLocals = nullptr;
+
     int attack = 0;
     int decay = 0;
     float sustain = 0.0f;
@@ -55,6 +65,7 @@ public:
     
     float process(int deltaSamples);
 
+    virtual void initialize(SynthPatchLocals *locals);    
 protected:
     static void _bind_methods();
 };
@@ -64,7 +75,10 @@ class SynthLFO: public godot::Resource{
     GDCLASS(SynthLFO,godot::Resource)
 protected:
     static void _bind_methods();
-public:
+public:    
+    SynthPatchLocals *synthLocals = nullptr;
+    virtual void initialize(SynthPatchLocals *locals);
+
     float process(){
         phase += rate/sampleRate;
         while(phase>=1.0f){phase-=1.0f;}
@@ -83,6 +97,9 @@ private:
 class SynthOscillator: public godot::Resource{
     GDCLASS(SynthOscillator, godot::Resource)
 public:
+    SynthPatchLocals *synthLocals = nullptr;
+    virtual void initialize(SynthPatchLocals *locals);
+
     virtual float process(){return 0.0f;}; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
     bool active = false;
     virtual void note_on();
@@ -128,8 +145,11 @@ protected:
     float phase = 0.0f;
     godot::Ref<SynthLFO> lfo;
     float lfo_depth = 0.0f;
-    float pitchBlend;//Current pitch blend offset
-    float pitchBlendRange;
+    float pitchbendRange = 0.0f;
+    int duty_cycle = 1;//The duty cycle of the pulse oscillator. TODO - Set up _validate_property to hide this if the oscillator isn't set to pulse.
+    bool has_fired = false;//for pulse oscillator - maybe useful for other weird kinds?
+    bool one_shot = false;// EXPOSE THIS ONE FOR PULSE RESONATOR
+    int one_shot_cooldown = sampleRate; //Cooldown on one-shot.
     virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD.
 
 
@@ -140,38 +160,32 @@ protected:
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
     float get_lfo_depth() const{return lfo_depth;}
 private:
-    float frequency = 440.0f;
+    float frequency = 440.0f; 
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
+    int one_shot_counter = 0;
 public:
-    enum Note{
-        C,
-        C_SHARP,
-        D,
-        D_SHARP,
-        E,
-        F,
-        F_SHARP,
-        G,
-        G_SHARP,
-        A,
-        A_SHARP,
-        B
-    };
-    Note note = A;
-    int octave = 4;
+    SynthHelper::Note note = SynthHelper::A; //TODO - Set up _validate_property to hide this if the oscillator IS set to pulse.
+    int octave = 4; //TODO - Set up _validate_property to hide this if the oscillator IS set to pulse.
 
     void updatePhase() {
         float pitchRatio = processPitch();
         phase += (frequency*pitchRatio)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
+            if(!one_shot){has_fired = false;}
+            else if(one_shot_counter>=one_shot_cooldown){ //Increments the counter for the one shot cooldown.
+                has_fired = false;
+                one_shot_counter = 0;
+            }
+            else{ one_shot_counter ++;}
         }
     };
     enum wf{
         SINE,
         SQUARE,
         TRIANGLE,
-        SAWTOOTH
+        SAWTOOTH,
+        PULSE
     };
     wf waveform = SINE;
 
@@ -186,13 +200,18 @@ public:
                 return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
             case SAWTOOTH:
                 return phase * 2.0f-1.0f;
+            case PULSE:
+                if(!has_fired){
+                    has_fired = true;
+                    return 1.0f;
+                }
+                else{return 0.0f;}
         }
     }
 
     //For handling notes.
     void updateFrequency(){
-        int midi = (octave+1)*12+note;
-        frequency = 440.0f * std::pow(2.0f,(midi-69)/12.0f); //Convert midi to semitones then set frequency.
+        frequency = SynthHelper::note_to_frequency(note, octave);
     }
     
     //Setgets
@@ -201,10 +220,13 @@ public:
     void set_frequency(const float newFreq){frequency = newFreq;};
     float get_frequency() const{return frequency;};
     
-    void set_note(const int new_note){note = static_cast<Note>(new_note);updateFrequency();}
+    void set_note(const int new_note){note = static_cast<SynthHelper::Note>(new_note);updateFrequency();}
     int get_note()const{return note;}
     void set_octave(const int new_octave){octave = new_octave;updateFrequency();}
     int get_octave()const{return octave;}
+
+    void set_bend_range(const float x){pitchbendRange = x;}
+    float get_bend_range() const {return pitchbendRange;}
 
 };
 
@@ -218,8 +240,10 @@ protected:
 public:
     godot::TypedArray<SynthPhaseOscillator> oscillators;
     godot::Ref<SynthADSR> frequencyADSR;
-    float min_semitones = -12.0f; //How many semitones below the target's note can it go?
-    float max_semitones = 12.0f; //The upper end of the ADSR compared to the target's target frequency.
+    float min_semitones = -4.0f; //How many semitones below the target's note can it go?
+    float max_semitones = 4.0f; //The upper end of the ADSR compared to the target's target frequency.
+
+    void initialize(SynthPatchLocals *locals) override;
 
     float process() override;
 
@@ -247,7 +271,11 @@ class SynthFilter: public godot::Resource{
     GDCLASS(SynthFilter,godot::Resource)
 protected:
     static void _bind_methods();
-public:
+public:    
+    
+    SynthPatchLocals *synthLocals = nullptr;
+    virtual void initialize(SynthPatchLocals *locals);
+    
     float cutoff = 1000.0f;
     float envelopeAmount = 12.0f; //Semitones
     float gain = 1.0f;
@@ -267,7 +295,7 @@ class SynthSVF : public SynthFilter{ // CODE FROM https://gist.github.com/hollan
 protected:
     static void _bind_methods();
 public:
-    float Q = 1.0;
+    float Q = 0.1;
     
     godot::Vector3 pass_mix = godot::Vector3(0.0f,1.0f,0.0f); //Low Pass, Band Pass, High Pass, respectively. Band Pass full by default.
     
@@ -294,9 +322,9 @@ public:
 
     float process(float v0, float envelopeRatio) override{
         float semitones = envelopeAmount*envelopeRatio;//Ratio is 0-1.0, envelopeAmount is in semitones
-        float semitonesRatio = std::pow(2.0f,semitones/12.0f);
+        // float semitonesRatio = std::pow(2.0f,semitones/12.0f);
         // float cutoff = minFrequencyHz*std::pow(maxFrequencyHz/minFrequencyHz,envelopeRatio); //EXPONENTIAL GAIN -- TODO: CHECK IF THIS SUCKS ASS
-        float finalCutoff = cutoff*semitonesRatio;
+        float finalCutoff = SynthHelper::apply_semitone_offset(cutoff, semitones);
         setCoefficients(finalCutoff, Q);
         float v3 = v0 - ic2eq;
         float v1 = a1 * ic1eq + a2 * v3;
@@ -310,31 +338,37 @@ public:
     };
 
 private:
-    float g, k, a1, a2, a3;  // filter coefficients
-    float ic1eq, ic2eq;      // internal state
+    float g= 0.0f, k= 0.0f, a1= 0.0f, a2= 0.0f, a3= 0.0f;  // filter coefficients
+    float ic1eq = 0.0f, ic2eq = 0.0f;      // internal state
     float sampleRate = (float)godot::AudioServer::get_singleton()->get_mix_rate();
 
 };
 
-//Resonator container for SVFs
-class SynthResonatorFilter: public SynthFilter{
-    GDCLASS(SynthResonatorFilter,SynthFilter);
+class SynthParallelFilter: public SynthFilter{
+    GDCLASS(SynthParallelFilter,SynthFilter)
 protected:
     static void _bind_methods();
 public:
-    godot::TypedArray<SynthFilter> filters;
-    godot::PackedFloat32Array filterResonanceRatio;
-
-    float fallbackFrequencyRatio = 2.0;
-
+    void initialize(SynthPatchLocals *locals) override;
     float process(float input,float envelopeRatio) override;
-
-
-    void set_filters(const godot::TypedArray<SynthFilter> newFilters){
+     godot::TypedArray<SynthFilter> filters;
+     void set_filters(const godot::TypedArray<SynthFilter> newFilters){
         filters = newFilters;
         set_cutoff(cutoff);}//Force recalculate of resonance ratios.
     
     godot::TypedArray<SynthFilter> get_filters() const{return filters;}
+};
+
+//Resonator container for SVFs
+class SynthHarmonicParallelFilter: public SynthParallelFilter{
+    GDCLASS(SynthHarmonicParallelFilter,SynthParallelFilter);
+protected:
+    static void _bind_methods();
+public:
+   
+    godot::PackedFloat32Array filterResonanceRatio;
+
+    float fallbackFrequencyRatio = 2.0;
 
     void set_filter_resonance_ratios(const godot::PackedFloat32Array x){
         filterResonanceRatio = x;
@@ -352,6 +386,78 @@ public:
 
 };
 
+//Resonator as a filter
+class SynthResonator: public SynthFilter{
+    GDCLASS(SynthResonator,SynthFilter)
+protected:
+    // int counter = 0;
+    static void _bind_methods();
+public:
+    float decay = 1.0f;
+    float excitation_strength = 1.0f;
+    float wet = 1.0f;//wet is full resonator
+    float dry = 0.0f;//dry is full input.
+    SynthHelper::Note note = SynthHelper::A;
+    int octave = 4;
+
+    void setCoefficients(){
+        r = exp(-6.9078f / (decay * sampleRate));;
+        theta = Math_TAU * cutoff/sampleRate;
+
+        a1 = 2.0f * r * std::cos(theta);
+        a2 = -r * r;
+        godot::print_line(godot::vformat("cutoff=%f r=%f a1=%f a2=%f",cutoff, r, a1, a2));
+    };
+
+    float process(float input, float envelopeRatio) override{
+        // if(input!=0.0f){godot::print_line(input);}
+        float y = excitation_strength*input + a1 * y1 + a2 * y2;
+        y2 = y1;
+        y1 = y;
+        // if(std::abs(y)>0.1&&counter%1000==1){godot::print_line(y);}
+        // counter++;
+        return dry*input + wet*y;
+    }
+
+    //setgets
+    void set_cutoff(const float x) override{
+        cutoff = x;
+        setCoefficients();
+    }
+    void set_decay(const float x){
+        decay = x;
+        setCoefficients();
+    }//TODO: Set this up to remap to human readable format.
+    float get_decay() const {return decay;}
+    void set_excitation_strength(const float x) {excitation_strength = x;}
+    void set_wet(const float x) {wet = x;}
+    void set_dry(const float x) {dry = x;}
+    float get_excitation_strength() const {return excitation_strength;}
+    float get_wet() const {return wet;}
+    float get_dry() const {return dry;}
+
+    //For handling notes.
+    void updateFrequency(){
+        set_cutoff(SynthHelper::note_to_frequency(note, octave));
+    }
+    
+    void set_note(const int new_note){note = static_cast<SynthHelper::Note>(new_note);updateFrequency();}
+    int get_note()const{return note;}
+    void set_octave(const int new_octave){octave = new_octave;updateFrequency();}
+    int get_octave()const{return octave;}
+
+private:
+    float sampleRate = (float)godot::AudioServer::get_singleton()->get_mix_rate();
+    //State variables
+    float y1 = 0.0f;
+    float y2 = 0.0f;
+    //coefficients (Yes I run the calculations here again, sue me.)
+    float r = 0.0f;
+    float theta = 0.0f;
+    float a1 = 0.0f;
+    float a2 = 0.0f;
+};
+
 
 class SimpleSynthPatch: public godot::Resource{
     GDCLASS(SimpleSynthPatch, godot::Resource)
@@ -359,24 +465,34 @@ protected:
     static void _bind_methods();
 public:
 
+    SynthPatchLocals synthLocals;
+
     godot::TypedArray<SynthOscillator> oscillators;
     godot::TypedArray<SynthFilter> filters;
-    godot::Ref<SynthADSR> freqADSR;
-    godot::Ref<SynthADSR> ampADSR;
+    godot::Ref<SynthADSR> filterADSR;
+    godot::Ref<SynthADSR> preFilterADSR;
+    godot::Ref<SynthADSR> postFilterADSR;
+    
 
     float frequencyOffset = 0.0f;
     float amplitudeOffset = 0.0f;
 
     // Setters and getters
-    void updateFreqADSR(float a,float d, float s, float r);
-    void updateAmpADSR(float a,float d, float s, float r);
-    void set_amp_adsr(const godot::Ref<SynthADSR> newADSR);
-    void set_freq_adsr(const godot::Ref<SynthADSR> newADSR);
-    godot::Ref<SynthADSR> get_amp_adsr() const;
-    godot::Ref<SynthADSR> get_freq_adsr() const;
+    void updateFilterADSR(float a,float d, float s, float r);
+    void updatePreFilterADSR(float a,float d, float s, float r);
+    void updatePostFilterADSR(float a,float d, float s, float r);
+    void set_filter_adsr(const godot::Ref<SynthADSR> newADSR);
+    void set_pre_filter_adsr(const godot::Ref<SynthADSR> newADSR);
+    void set_post_filter_adsr(const godot::Ref<SynthADSR> newADSR);
+    godot::Ref<SynthADSR> get_filter_adsr() const;
+    godot::Ref<SynthADSR> get_pre_filter_adsr() const;
+    godot::Ref<SynthADSR> get_post_filter_adsr() const;
 
     void note_on();
     void note_off();
+
+    void set_pitch_bend(const float x){synthLocals.pitchBend = x;}
+    float get_pitch_bend() const {return synthLocals.pitchBend;}
 
     void set_oscillators(const godot::TypedArray<SynthOscillator> newOsc);
     godot::TypedArray<SynthOscillator> get_oscillators() const;
@@ -384,6 +500,7 @@ public:
     void set_filters(const godot::TypedArray<SynthFilter> newFilters);
     godot::TypedArray<SynthFilter> get_filters() const;
 
+    void initialize(); //Initializes all children, passes the context down.
 
     //Processing
     float process();

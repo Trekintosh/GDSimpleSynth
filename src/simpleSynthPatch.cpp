@@ -11,10 +11,18 @@
 
 using namespace godot;
 
+void SynthLFO::initialize(SynthPatchLocals *l){
+    synthLocals = l;
+}
+
 void SynthLFO::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_rate","LFO Rate"), &SynthLFO::set_rate);
     ClassDB::bind_method(D_METHOD("get_rate"), &SynthLFO::get_rate);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO rate (hz)"),"set_rate","get_rate");
+}
+
+void SynthOscillator::initialize(SynthPatchLocals *l){
+    synthLocals = l;
 }
 
 void SynthOscillator::note_on(){
@@ -78,13 +86,13 @@ float SynthPhaseOscillator::processPitch(){
     float lfoPitch = 0.0f;
     if(lfo.is_valid()){lfoPitch = lfo->process();} //if no LFO then don't LFO.
     lfoPitch *= lfo_depth;
-    float pitchBlendTotal = pitchBlend*pitchBlendRange;
+    float pitchbendTotal = synthLocals->pitchBend*pitchbendRange;
 
-    float semitones = lfoPitch+semitone_offset+pitchBlendTotal;
+    float semitones = lfoPitch+semitone_offset+pitchbendTotal;
     // counter2++;
     // if(counter2%1000==1){print_line(semitones);}
     //Convert LFO result to semitones.
-    return std::pow(2.0f,semitones / 12.0f);
+    return SynthHelper::apply_semitone_offset(1.0f, semitones);
 }
 
 
@@ -96,7 +104,7 @@ void SynthPhaseOscillator::_bind_methods(){
 
     ClassDB::bind_method(D_METHOD("set_wf","Waveform"), &SynthPhaseOscillator::set_waveform);
     ClassDB::bind_method(D_METHOD("get_wf"), &SynthPhaseOscillator::get_waveform);
-    ADD_PROPERTY(PropertyInfo(Variant::INT,"Waveform Shape",PROPERTY_HINT_ENUM,"Sine,Square,Triangle,Sawtooth"),"set_wf","get_wf");
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Waveform Shape",PROPERTY_HINT_ENUM,"Sine,Square,Triangle,Sawtooth,Pulse"),"set_wf","get_wf");
 
 
     ClassDB::bind_method(D_METHOD("set_lfo","LFO"), &SynthPhaseOscillator::set_lfo);
@@ -114,8 +122,20 @@ void SynthPhaseOscillator::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthPhaseOscillator::set_octave);
     ClassDB::bind_method(D_METHOD("get_oct"), &SynthPhaseOscillator::get_octave);
     ADD_PROPERTY(PropertyInfo(Variant::INT,"Octave",godot::PROPERTY_HINT_RANGE,"1,8,1"),"set_oct","get_oct");
-}
+
+    ClassDB::bind_method(D_METHOD("set_bend_range","Octave"), &SynthPhaseOscillator::set_bend_range);
+    ClassDB::bind_method(D_METHOD("get_bend_range"), &SynthPhaseOscillator::get_bend_range);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Pitch Bend Range (semitones)"),"set_bend_range","get_bend_range");
+
+}   
     
+void SynthGroupOscillator::initialize(SynthPatchLocals *l){
+    synthLocals = l;
+    for(auto v : oscillators){
+        Ref<SynthPhaseOscillator> osc = v;
+        osc->initialize(l);
+    }
+}
 
 void SynthGroupOscillator::note_on(){
     active = true;
@@ -185,6 +205,9 @@ void SynthGroupOscillator::_bind_methods(){
 
 }
 
+void SynthFilter::initialize(SynthPatchLocals *l){
+    synthLocals = l;
+}
 
 void SynthFilter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_gain","gain"),&SynthFilter::set_gain);
@@ -208,13 +231,38 @@ void SynthSVF::_bind_methods(){
     ADD_PROPERTY(PropertyInfo(Variant::VECTOR3,"Pass filter mix ratio (Low Pass, Band Pass, High Pass)"),"set_pass_mix","get_pass_mix");
 }
 
-void SynthResonatorFilter::set_cutoff(const float newFreq){
+void SynthParallelFilter::initialize(SynthPatchLocals *l){
+    synthLocals = l;
+    for(auto v : filters){
+        Ref<SynthFilter> filter = v;
+        filter->initialize(l);
+    }
+}
+
+float SynthParallelFilter::process(float input, float envelopeRatio){
+    if(filters.size()==0){return input;}//Bail if no filters.
+    //Iterate through filters and apply
+    float output = 0.0f;
+    for(int i=0;i<filters.size();i++){
+        Ref<SynthFilter> filter = filters[i];
+        output += filter->process(input,envelopeRatio)*filter->gain;
+    }
+    return output;
+}
+
+void SynthParallelFilter::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_filters","Filter Array"),&SynthParallelFilter::set_filters);
+    ClassDB::bind_method(D_METHOD("get_filters"),&SynthParallelFilter::get_filters);
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Filters",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthFilter"),"set_filters","get_filters");
+}
+
+void SynthHarmonicParallelFilter::set_cutoff(const float newFreq){
     cutoff = newFreq;
     if(filters.size()==0){return;}//Bail if no filters.
     //Set the cutoff of the child filters to the multiples of the new frequency
     for(int i=0;i<filters.size();i++){
         Ref<SynthFilter> filter = filters[i];
-        if(!filter.is_valid()){return;}
+        if(!filter.is_valid()){continue;}
         if(i<filterResonanceRatio.size()){ //set frequency as the individuals if we have individuals
             filter->set_cutoff(cutoff*filterResonanceRatio[i]);
         }
@@ -224,30 +272,42 @@ void SynthResonatorFilter::set_cutoff(const float newFreq){
     }
 }
 
-
-float SynthResonatorFilter::process(float input, float envelopeRatio){
-    if(filters.size()==0){return input;}//Bail if no filters.
-    //Iterate through filters and apply
-    float output = input;
-    for(int i=0;i<filters.size();i++){
-        Ref<SynthFilter> filter = filters[i];
-        output = filter->process(output,envelopeRatio)*filter->gain;
-    }
-    return output;
-}
-
-void SynthResonatorFilter::_bind_methods(){
-    ClassDB::bind_method(D_METHOD("set_filters","Filter Array"),&SynthResonatorFilter::set_filters);
-    ClassDB::bind_method(D_METHOD("get_filters"),&SynthResonatorFilter::get_filters);
-    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Filters",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthFilter"),"set_filters","get_filters");
-    
-    ClassDB::bind_method(D_METHOD("set_fallback_ratio","Resonance Ratio"),&SynthResonatorFilter::set_fallback_frequency_ratio);
-    ClassDB::bind_method(D_METHOD("get_fallback_ratio"),&SynthResonatorFilter::get_fallback_frequency_ratio);
+void SynthHarmonicParallelFilter::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_fallback_ratio","Resonance Ratio"),&SynthHarmonicParallelFilter::set_fallback_frequency_ratio);
+    ClassDB::bind_method(D_METHOD("get_fallback_ratio"),&SynthHarmonicParallelFilter::get_fallback_frequency_ratio);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Fallback Resonance Ratio"),"set_fallback_ratio","get_fallback_ratio");
 
-    ClassDB::bind_method(D_METHOD("set_filter_ratios", "Filter Resonance Ratios"), &SynthResonatorFilter::set_filter_resonance_ratios);
-    ClassDB::bind_method(D_METHOD("get_filter_ratios"), &SynthResonatorFilter::get_filter_resonance_ratios);
+    ClassDB::bind_method(D_METHOD("set_filter_ratios", "Filter Resonance Ratios"), &SynthHarmonicParallelFilter::set_filter_resonance_ratios);
+    ClassDB::bind_method(D_METHOD("get_filter_ratios"), &SynthHarmonicParallelFilter::get_filter_resonance_ratios);
     ADD_PROPERTY(PropertyInfo(Variant::PACKED_FLOAT32_ARRAY, "Individual Filter Resonance Ratios (MUST MATCH FILTER COUNT)"), "set_filter_ratios", "get_filter_ratios");
+
+}
+
+void SynthResonator::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_decay","Decay"),&SynthResonator::set_decay);
+    ClassDB::bind_method(D_METHOD("get_decay"),&SynthResonator::get_decay);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Resonator Decay (0.9-1.0)"),"set_decay","get_decay");
+    ClassDB::bind_method(D_METHOD("set_cutoff","Resonance(hz)"), &::SynthResonator::set_cutoff);
+    ClassDB::bind_method(D_METHOD("set_excitation_strength", "Excitation Strength"), &SynthResonator::set_excitation_strength);
+    ClassDB::bind_method(D_METHOD("get_excitation_strength"), &SynthResonator::get_excitation_strength);
+    ADD_PROPERTY(
+        PropertyInfo(Variant::FLOAT, "Excitation Strength"),"set_excitation_strength","get_excitation_strength");
+
+    ClassDB::bind_method(D_METHOD("set_wet", "Wet"), &SynthResonator::set_wet);
+    ClassDB::bind_method(D_METHOD("get_wet"), &SynthResonator::get_wet);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Wet",PROPERTY_HINT_RANGE, "0,1,0.01"),"set_wet","get_wet");
+
+    ClassDB::bind_method(D_METHOD("set_dry", "Dry"), &SynthResonator::set_dry);
+    ClassDB::bind_method(D_METHOD("get_dry"), &SynthResonator::get_dry);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "Dry",PROPERTY_HINT_RANGE, "0,1,0.01"),"set_dry","get_dry");
+
+    ClassDB::bind_method(D_METHOD("set_note","Note"), &SynthResonator::set_note);
+    ClassDB::bind_method(D_METHOD("get_note"), &SynthResonator::get_note);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Resonator Note",PROPERTY_HINT_ENUM,"C,C#,D,D#,E,F,F#,G,G#,A,A#,B"),"set_note","get_note");
+
+    ClassDB::bind_method(D_METHOD("set_oct","Octave"), &SynthResonator::set_octave);
+    ClassDB::bind_method(D_METHOD("get_oct"), &SynthResonator::get_octave);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Octave",godot::PROPERTY_HINT_RANGE,"1,8,1"),"set_oct","get_oct");
 
 }
 
@@ -278,6 +338,9 @@ float SynthADSR::get_release() const{
     return (float)((float)release/sampleRate);
 }
 
+void SynthADSR::initialize(SynthPatchLocals *l){
+    synthLocals = l;
+}
 
 void SynthADSR::note_on(){
     sampleTime = 0;
@@ -357,19 +420,26 @@ void SynthADSR::_bind_methods(){
 
 ///////////////////// SIMPLE SYNTH PATCH SETTERS/GETTERS //////////////////
 
-void SimpleSynthPatch::set_amp_adsr(const Ref<SynthADSR> newADSR){
-    ampADSR = newADSR;
-}
-void SimpleSynthPatch::set_freq_adsr(const Ref<SynthADSR> newADSR){
-    freqADSR = newADSR;
+void SimpleSynthPatch::set_filter_adsr(const Ref<SynthADSR> newADSR){
+    filterADSR = newADSR;
 }
 
-Ref<SynthADSR> SimpleSynthPatch::get_amp_adsr() const{
-    return ampADSR;
+Ref<SynthADSR> SimpleSynthPatch::get_filter_adsr() const{
+    return filterADSR;
+}
+void SimpleSynthPatch::set_pre_filter_adsr(const Ref<SynthADSR> newADSR){
+    preFilterADSR = newADSR;
 }
 
-Ref<SynthADSR> SimpleSynthPatch::get_freq_adsr() const{
-    return freqADSR;
+Ref<SynthADSR> SimpleSynthPatch::get_pre_filter_adsr() const{
+    return preFilterADSR;
+}
+void SimpleSynthPatch::set_post_filter_adsr(const Ref<SynthADSR> newADSR){
+    postFilterADSR = newADSR;
+}
+
+Ref<SynthADSR> SimpleSynthPatch::get_post_filter_adsr() const{
+    return  postFilterADSR;
 }
 
 void SimpleSynthPatch::set_oscillators(const TypedArray<SynthOscillator> newOsc){
@@ -388,6 +458,20 @@ TypedArray<SynthFilter> SimpleSynthPatch::get_filters() const{
     return filters;
 }
 
+//////////////SIMPLE SYNTH PATCH INIT///////////////
+void SimpleSynthPatch::initialize(){
+    
+    for(auto v : oscillators){
+        Ref<SynthOscillator> osc = v;
+        osc->initialize(&synthLocals);
+    }
+    
+    for(auto v : filters){
+        Ref<SynthFilter> filt = v;
+        filt->initialize(&synthLocals);
+    }
+}
+
 ///////////////////// SIMPLE SYNTH PATCH ACTUAL PROCESSING ///////////////////
 float SimpleSynthPatch::process(){
     if(oscillators.size()==0){
@@ -397,47 +481,57 @@ float SimpleSynthPatch::process(){
     float output = 0.0f;
     for(int i = 0; i<oscillators.size();i++){
         Ref<SynthOscillator> osc = oscillators[i];
-        output += osc->process()*osc->gain;
+        if(!osc.is_null()&&osc->active){output += osc->process()*osc->gain;}
     }
+    if(preFilterADSR.is_valid()){output *= preFilterADSR->process();}
     ///FILTER BLOCK
-    float freqEnvelope = freqADSR->process(1); //Get our frequency ratio first.
+    float freqEnvelope = 1.0f;
+    if(filterADSR.is_valid()){freqEnvelope = filterADSR->process(1);} //Get our frequency ratio first.
     for(int i=0; i<filters.size();i++){
         Ref<SynthFilter> filter = filters[i];
         // filter->cutoff = frequencyOffset; //Apply frequency offset for randomness in sequencer (or in general) //TODO: Replace this with something else for the sequencer randomness.
         output = filter->process(output,freqEnvelope)*filter->gain; //REMEMBER: FILTERS HAVE THEIR OWN FREQUENCY GATES. WE ONLY PASS A RATIO!
     }
-    output *= ampADSR->process();
-    output *= (1.0f-amplitudeOffset);
+    if(postFilterADSR.is_valid()){output *= postFilterADSR->process();}
+
+    // output *= (1.0f-amplitudeOffset); TODO - FIX THIS WITH SOMETHING BETTER FOR SEQUENCER/OTHER RANDOMIZATION
     // print_line(output);
     return output;
 }
 
 void SimpleSynthPatch::note_on(){
-    if(!ampADSR.is_null()){
-        ampADSR->note_on();
+    if(filterADSR.is_valid()){
+        filterADSR->note_on();
     }
-    if(!freqADSR.is_null()){
-        freqADSR->note_on();
+    if(preFilterADSR.is_valid()){
+        preFilterADSR->note_on();
+    }
+    if(postFilterADSR.is_valid()){
+        postFilterADSR->note_on();
     }
     if(oscillators.size()>0){
         for(int i=0;i<oscillators.size();i++){
             Ref<SynthOscillator> osc = oscillators[i];
-            osc->note_on();
+            if(osc.is_valid()){osc->note_on();}
+
         }
     }
 }
 
 void SimpleSynthPatch::note_off(){
-    if(!ampADSR.is_null()){
-        ampADSR->note_off();
+    if(filterADSR.is_valid()){
+        filterADSR->note_on();
     }
-    if(!freqADSR.is_null()){
-        freqADSR->note_off();
+    if(preFilterADSR.is_valid()){
+        preFilterADSR->note_on();
+    }
+    if(postFilterADSR.is_valid()){
+        postFilterADSR->note_on();
     }
     if(oscillators.size()>0){
         for(int i=0;i<oscillators.size();i++){
             Ref<SynthOscillator> osc = oscillators[i];
-            osc->note_off();
+            if(osc.is_valid()){osc->note_off();}
         }
     }
 }
@@ -445,14 +539,18 @@ void SimpleSynthPatch::note_off(){
 
 void SimpleSynthPatch::_bind_methods(){
     //SetterGetters
-    ClassDB::bind_method(D_METHOD("set_amp_adsr","ADSR"), &SimpleSynthPatch::set_amp_adsr);
-    ClassDB::bind_method(D_METHOD("get_amp_adsr"),&SimpleSynthPatch::get_amp_adsr);
+    ClassDB::bind_method(D_METHOD("set_filter_adsr","ADSR"), &SimpleSynthPatch::set_filter_adsr);
+    ClassDB::bind_method(D_METHOD("get_filter_adsr"),&SimpleSynthPatch::get_filter_adsr);
 
-    ClassDB::bind_method(D_METHOD("set_freq_adsr","ADSR"), &SimpleSynthPatch::set_freq_adsr);
-    ClassDB::bind_method(D_METHOD("get_freq_adsr"),&SimpleSynthPatch::get_freq_adsr);
+    ClassDB::bind_method(D_METHOD("set_pre_filter_adsr","ADSR"), &SimpleSynthPatch::set_pre_filter_adsr);
+    ClassDB::bind_method(D_METHOD("get_pre_filter_adsr"),&SimpleSynthPatch::get_pre_filter_adsr);
 
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Amplitude ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_amp_adsr", "get_amp_adsr");
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Frequency ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_freq_adsr", "get_freq_adsr");
+    ClassDB::bind_method(D_METHOD("set_post_filter_adsr","ADSR"), &SimpleSynthPatch::set_post_filter_adsr);
+    ClassDB::bind_method(D_METHOD("get_post_filter_adsr"),&SimpleSynthPatch::get_post_filter_adsr);
+
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_filter_adsr", "get_filter_adsr");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Pre-filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_pre_filter_adsr", "get_pre_filter_adsr");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Post-filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_post_filter_adsr", "get_post_filter_adsr");
 
     ClassDB::bind_method(D_METHOD("set_oscillators","Oscillator Array"),&SimpleSynthPatch::set_oscillators);
     ClassDB::bind_method(D_METHOD("get_oscillators"),&SimpleSynthPatch::get_oscillators);
@@ -467,4 +565,8 @@ void SimpleSynthPatch::_bind_methods(){
     //Actual functions
     ClassDB::bind_method(D_METHOD("note_on"),&SimpleSynthPatch::note_on);
     ClassDB::bind_method(D_METHOD("note_off"),&SimpleSynthPatch::note_off);
+
+    ClassDB::bind_method(D_METHOD("set_pitch_bend","pitch bend (semitones)"),&SimpleSynthPatch::set_pitch_bend);
+    ClassDB::bind_method(D_METHOD("get_pitch_bend"),&SimpleSynthPatch::get_pitch_bend);
+    
 }
