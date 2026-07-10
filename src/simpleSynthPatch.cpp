@@ -289,16 +289,15 @@ float SynthFeedbackOscillator::process(){
 void SynthFeedbackOscillator::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_feedback","feedback"),&SynthFeedbackOscillator::set_feedback);
     ClassDB::bind_method(D_METHOD("get_feedback"),&SynthFeedbackOscillator::get_feedback);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"feedback"),"set_feedback","get_feedback");
 
     ClassDB::bind_method(D_METHOD("set_breath","breath"),&SynthFeedbackOscillator::set_breath);
     ClassDB::bind_method(D_METHOD("get_breath"),&SynthFeedbackOscillator::get_breath);
-
-    ClassDB::bind_method(D_METHOD("set_gain","gain"),&SynthFeedbackOscillator::set_gain);
-    ClassDB::bind_method(D_METHOD("get_gain"),&SynthFeedbackOscillator::get_gain);
-
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"feedback"),"set_feedback","get_feedback");
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"breath"),"set_breath","get_breath");
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"gain"),"set_gain","get_gain");
+    
+    ClassDB::bind_method(D_METHOD("set_cutoff","cutoff"),&SynthFeedbackOscillator::set_cutoff);
+    ClassDB::bind_method(D_METHOD("get_cutoff"),&SynthFeedbackOscillator::get_cutoff);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"cutoff",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_cutoff","get_cutoff");
 }
 
 void SynthFilter::initialize(SynthPatchLocals *l){

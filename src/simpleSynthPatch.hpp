@@ -189,12 +189,11 @@ class SynthBasicLowPassFilter: public SynthFrequencyFilter{
     GDCLASS(SynthBasicLowPassFilter,SynthFrequencyFilter)
 protected:
     static void _bind_methods();
-protected:
-    float alpha = 0.0f;
-    float state = 0.0f;
 private:
-
+    float state = 0.0f;
 public:
+    float alpha = 0.0f;
+
     float process(float input, float envelopeRatio) override {
         float finalCutoff = SynthHelper::apply_semitone_offset(cutoff, processCutoff(envelopeRatio));
         alpha = 1.0f-std::exp(-Math_TAU*finalCutoff/sampleRate); //Recalculate alpha if cutoff changes.
@@ -204,6 +203,17 @@ public:
     }
 };
 
+class SynthBasicerLowPassFilter: public SynthFilter{
+private:
+    float state = 0.0f;
+public:
+    float alpha = 0.0f;
+
+    float process(float input, float) override {
+        state += alpha * (input-state);
+        return state;
+    }
+};
 
 
 class SynthSVF : public SynthFrequencyFilter{ // CODE FROM https://gist.github.com/hollance/2891d89c57adc71d9560bcf0e1e55c4b - THANKS!!
@@ -619,8 +629,6 @@ protected:
     static void _bind_methods();
 public:
     SynthFeedbackOscillator(){
-        godot::print_line("hi_init");
-
         buffer.resize(4096);
 
         lowPass.instantiate();
@@ -629,6 +637,7 @@ public:
     float feedback = 1.67f;
     float breath = 0.67f;
     float gain = 0.1f;
+    float cutoff = 0.3f;
 
     float process() override;
 
@@ -640,6 +649,12 @@ public:
 
     void set_gain(const float x){gain = x;}
     float get_gain() const{return gain;}
+
+    void set_cutoff(const float x){
+        cutoff = x;
+        if(lowPass.is_valid()){lowPass->alpha = cutoff;}
+    }
+    float get_cutoff() const {return cutoff;}
 
     void initialize(SynthPatchLocals *locals) override;
 
@@ -653,7 +668,7 @@ private:
     float delayCurrent = 128.0f;
     float delayTarget = 128.0f;
 
-    godot::Ref<SynthBasicLowPassFilter> lowPass;
+    godot::Ref<SynthBasicerLowPassFilter> lowPass;
     godot::Ref<SynthDCBlockFilter> dcBlock;
 };
 

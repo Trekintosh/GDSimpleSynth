@@ -3,10 +3,19 @@
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
 
+[sub_resource type="SynthLFO" id="SynthLFO_j3pel"]
+"LFO rate (hz)" = 20.0
+
 [sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_0xm2m"]
-feedback = 1.9
-breath = 0.8
-Gain = 0.1
+feedback = 1.625
+breath = 0.625
+cutoff = 0.0
+"Oscillator Frequency (hz)" = 277.18265
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_j3pel")
+"LFO Frequency span (semitones)" = 0.5
+"Oscillator Note" = 1
+"Pitch Bend Range (semitones)" = 12.0
+Gain = 0.5
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_0xm2m"]
 Oscillators = Array[SynthOscillator]([SubResource("SynthFeedbackOscillator_0xm2m")])
