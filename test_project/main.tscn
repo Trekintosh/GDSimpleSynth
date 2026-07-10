@@ -3,44 +3,13 @@
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
 
-[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_0xm2m"]
-"Waveform Shape" = 4
-"Oscillator Frequency (hz)" = 3.0
+[sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_0xm2m"]
+feedback = 1.9
+breath = 0.8
 Gain = 0.1
-
-[sub_resource type="SynthLFO" id="SynthLFO_0xm2m"]
-"LFO rate (hz)" = 440.0
-
-[sub_resource type="SynthResonantOscillator" id="SynthResonantOscillator_0xm2m"]
-"Excitor Oscillator" = SubResource("SynthPhaseOscillator_0xm2m")
-"Decay Time(seconds)" = 3.0
-"Excitation Strength" = 2.0
-"Oscillator Frequency (hz)" = 2093.0044
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_0xm2m")
-"LFO Frequency span (semitones)" = 1.0
-"Oscillator Note" = 0
-Octave = 7
-
-[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_h2yge"]
-"Waveform Shape" = 4
-"Oscillator Frequency (hz)" = 3.0
-Gain = 0.1
-
-[sub_resource type="SynthLFO" id="SynthLFO_h2yge"]
-"LFO rate (hz)" = 440.0
-
-[sub_resource type="SynthResonantOscillator" id="SynthResonantOscillator_1bvp3"]
-"Excitor Oscillator" = SubResource("SynthPhaseOscillator_h2yge")
-"Decay Time(seconds)" = 3.0
-"Excitation Strength" = 2.0
-"Oscillator Frequency (hz)" = 2793.826
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_h2yge")
-"LFO Frequency span (semitones)" = 1.0
-"Oscillator Note" = 5
-Octave = 7
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_0xm2m"]
-Oscillators = Array[SynthOscillator]([SubResource("SynthResonantOscillator_0xm2m"), SubResource("SynthResonantOscillator_1bvp3")])
+Oscillators = Array[SynthOscillator]([SubResource("SynthFeedbackOscillator_0xm2m")])
 
 [sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
 

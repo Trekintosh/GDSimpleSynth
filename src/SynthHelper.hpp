@@ -1,6 +1,7 @@
 #pragma once
 
 #include <godot_cpp/classes/object.hpp>
+#include <godot_cpp/classes/ref.hpp>
 
 class SynthHelper : public godot::Object{
     GDCLASS(SynthHelper,godot::Object)
