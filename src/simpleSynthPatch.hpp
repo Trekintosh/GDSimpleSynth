@@ -2,6 +2,8 @@
 #include "SynthHelper.hpp"
 #include "godot_cpp/core/math_defs.hpp"
 #include "godot_cpp/variant/packed_float32_array.hpp"
+#include "godot_cpp/variant/packed_string_array.hpp"
+#include "godot_cpp/variant/string_name.hpp"
 #define _USE_MATH_DEFINES
 #include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/classes/resource.hpp"
@@ -11,29 +13,37 @@
 #include "godot_cpp/classes/audio_server.hpp"
 #include <vector>
 
+class SimpleSynthPatch;
 
 //struct that holds any variables that need to be referenced by anything else in the patch regardless of depth and such.
 struct SynthPatchLocals{
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
     float pitchBend = 0;
+    std::vector<float> modulation; //Holds channels that modulate things
 };
 
-//This class always returns 0-1 based on something.
-class SynthParameterSource: public godot::Resource{
-GDCLASS(SynthParameterSource,godot::Resource);
+class SynthResource : public godot::Resource{
+    GDCLASS(SynthResource, godot::Resource)
 protected:
     static void _bind_methods();
+public:
     SynthPatchLocals *synthLocals = nullptr;
+    SimpleSynthPatch *patch = nullptr;
+    bool active = false;
 
-    bool active = true;
-
-
-public:    
-    virtual void initialize(SynthPatchLocals *locals);
-    //Overridables
-    virtual void note_on(){}
-    virtual void note_off(){}
+    virtual void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch);
+    virtual void note_on();
+    virtual void note_off();
     virtual void reset(){}
+};
+
+//This class always returns -1-1 based on something.
+class SynthParameterSource: public SynthResource{
+GDCLASS(SynthParameterSource,SynthResource);
+protected:
+    static void _bind_methods();
+
+public:
     virtual float process(){return 1.0f;}
 };
 
@@ -117,16 +127,48 @@ private:
 };
 
 
-class SynthFilter: public godot::Resource{
-    GDCLASS(SynthFilter,godot::Resource)
+class SynthModulationReceiver : public SynthParameterSource{
+    GDCLASS(SynthModulationReceiver,SynthParameterSource)
+protected:
+    static void _bind_methods();
+public:
+    godot::StringName channelName;
+
+    int channelIndex = -1;
+
+    void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
+
+    float process() override
+    {
+        if(channelIndex < 0)
+            return 0.5f;
+
+        return synthLocals->modulation[channelIndex];
+    }
+
+    godot::Array _get_property_list(godot::List<godot::PropertyInfo> *p_list) const;
+    bool _get(const godot::StringName &p_name, godot::Variant &r_ret) const;
+    bool _set(const godot::StringName &p_name, const godot::Variant &p_value);
+};
+
+
+
+
+
+
+
+
+
+//------------FILTERS-------------------
+
+
+class SynthFilter: public SynthResource{
+    GDCLASS(SynthFilter,SynthResource)
 protected:
     static void _bind_methods();
     float sampleRate = (float)godot::AudioServer::get_singleton()->get_mix_rate();
 public:
-    SynthPatchLocals *synthLocals = nullptr;
     float gain = 1.0f;
-
-    virtual void initialize(SynthPatchLocals *locals);
 
     void set_gain(const float x){gain = x;}
     float get_gain() const{return gain;}
@@ -273,7 +315,7 @@ class SynthParallelFilter: public SynthFrequencyFilter{
 protected:
     static void _bind_methods();
 public:
-    void initialize(SynthPatchLocals *locals) override;
+    void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
     float process(float input,float envelopeRatio) override;
      godot::TypedArray<SynthFrequencyFilter> filters;
      void set_filters(const godot::TypedArray<SynthFrequencyFilter> newFilters){
@@ -382,16 +424,10 @@ private:
     float a2 = 0.0f;
 };
 
-class SynthOscillator: public godot::Resource{
-    GDCLASS(SynthOscillator, godot::Resource)
+class SynthOscillator: public SynthResource{
+    GDCLASS(SynthOscillator, SynthResource)
 public:
-    SynthPatchLocals *synthLocals = nullptr;
-    virtual void initialize(SynthPatchLocals *locals);
-
     virtual float process(){return 0.0f;}; //PROCESSES A SINGLE SAMPLE OF OSCILLATION
-    bool active = false;
-    virtual void note_on();
-    virtual void note_off();
     float semitone_offset = 0.0f;
     float gain = 1.0f;
     void set_gain(const float x){gain = x;}
@@ -475,7 +511,7 @@ private:
     float decay = 0.995f;
 
 public:
-    virtual void initialize(SynthPatchLocals *locals) override;
+    void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
     float decay_time = 0.5f;
     float excitation_strength = 1.0;
     godot::Ref<SynthOscillator> excitor;
@@ -600,7 +636,7 @@ public:
     float min_semitones = -4.0f; //How many semitones below the target's note can it go?
     float max_semitones = 4.0f; //The upper end of the ADSR compared to the target's target frequency.
 
-    void initialize(SynthPatchLocals *locals) override;
+    void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
 
     float process() override;
 
@@ -656,7 +692,7 @@ public:
     }
     float get_cutoff() const {return cutoff;}
 
-    void initialize(SynthPatchLocals *locals) override;
+    void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
 
 private:
     float read_delay();
@@ -679,6 +715,7 @@ class SimpleSynthPatch: public godot::Resource{
 protected:
     static void _bind_methods();
 public:
+    SimpleSynthPatch();
 
     SynthPatchLocals synthLocals;
 
@@ -687,6 +724,8 @@ public:
     godot::Ref<SynthParameterSource> filterFrequencyModifier;
     godot::Ref<SynthParameterSource> preFilterAmplitudeModifier;
     godot::Ref<SynthParameterSource> postFilterAmplitudeModifier;
+
+    godot::TypedArray<godot::StringName> modulation_channels;
     
 
     float frequencyOffset = 0.0f;
@@ -712,7 +751,13 @@ public:
     void set_filters(const godot::TypedArray<SynthFilter> newFilters);
     godot::TypedArray<SynthFilter> get_filters() const;
 
+    void set_modulation_channels(godot::TypedArray<godot::StringName>);
+    godot::TypedArray<godot::StringName> get_modulation_channels();
+
     void initialize(); //Initializes all children, passes the context down.
+
+    //For looking up modulation channels.
+    int find_modulation_channel(godot::StringName &name);
 
     //Processing
     float process();
