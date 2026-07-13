@@ -6,12 +6,16 @@ extends Node2D
 func _ready() -> void:
 	audio_stream_player.play()
 	await get_tree().process_frame
-
+var time = 0.0
 func _process(_delta: float) -> void:
+	time+=_delta
 	if Input.is_action_just_pressed("ui_accept"):
 		SSG.patch.note_on()
 	elif Input.is_action_just_released("ui_accept"):
 		SSG.patch.note_off()
+		
+	if Input.is_action_pressed("ui_down"):
+		SSG.patch.set_modulation_value_by_name("testes",sin(time))
 	
 	#if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		#SSG.patch.set_pitch_bend(lerpf(SSG.patch.get_pitch_bend(),get_global_mouse_position().y/get_viewport().size.y,_delta*5))

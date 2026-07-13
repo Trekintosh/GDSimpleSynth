@@ -1,6 +1,8 @@
 #pragma once
 #include "SynthHelper.hpp"
 #include "godot_cpp/core/math_defs.hpp"
+#include "godot_cpp/core/print_string.hpp"
+#include "godot_cpp/templates/hash_map.hpp"
 #include "godot_cpp/variant/packed_float32_array.hpp"
 #include "godot_cpp/variant/packed_string_array.hpp"
 #include "godot_cpp/variant/string_name.hpp"
@@ -15,6 +17,7 @@
 
 class SimpleSynthPatch;
 
+
 //struct that holds any variables that need to be referenced by anything else in the patch regardless of depth and such.
 struct SynthPatchLocals{
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
@@ -26,7 +29,9 @@ class SynthResource : public godot::Resource{
     GDCLASS(SynthResource, godot::Resource)
 protected:
     static void _bind_methods();
+    
 public:
+    godot::StringName name = "";
     SynthPatchLocals *synthLocals = nullptr;
     SimpleSynthPatch *patch = nullptr;
     bool active = false;
@@ -35,6 +40,10 @@ public:
     virtual void note_on();
     virtual void note_off();
     virtual void reset(){}
+    virtual void set_name(const godot::StringName newName);
+    virtual godot::StringName get_name() const;
+    virtual void set_active(const bool x){active = x;}
+    virtual bool get_active() const {return active;}
 };
 
 //This class always returns -1-1 based on something.
@@ -131,6 +140,8 @@ private:
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
 };
 
+//-------------MODULATION CHANNELS-----------------
+
 
 class SynthModulationReceiver : public SynthParameterSource{
     GDCLASS(SynthModulationReceiver,SynthParameterSource)
@@ -147,22 +158,18 @@ public:
     {
         if(channelIndex < 0)
             return 0.0f;
-        return synthLocals->modulation[channelIndex]*(1.0-attenuation);
+        return synthLocals?synthLocals->modulation[channelIndex]*(1.0-attenuation):0.0f;//Guard against bad init
     }
 
     void _get_property_list(godot::List<godot::PropertyInfo> *p_list) const;
     bool _get(const godot::StringName &p_name, godot::Variant &r_ret) const;
     bool _set(const godot::StringName &p_name, const godot::Variant &p_value);
 
-    void set_channel_name(const godot::StringName &n){print_line("SET CHANNEL NAME "+godot::String(n)+
-               " object=" + godot::String::num_uint64((uint64_t)this));channelName = n;}
+    void set_channel_name(const godot::StringName &n);
     godot::StringName get_channel_name() const {return channelName;}
 };
 
 
-
-
-//-------------MODULATION CHANNELS-----------------
 class SynthModulationChannel: public SynthResource{
     GDCLASS(SynthModulationChannel,SynthResource)
 protected:
@@ -179,8 +186,6 @@ public:
 
     float auto_timeout = 0.5f;//How long until auto mode releases to the internal controls.
 
-    godot::StringName name = "";
-
     godot::TypedArray<SynthParameterSource> internalSources;
 
     enum modes{
@@ -189,9 +194,6 @@ public:
         BLEND,
     };
     modes mode = AUTO;
-
-    void set_name(const godot::StringName newName);
-    godot::StringName get_name() const;
 
     void initialize(SynthPatchLocals *locals, SimpleSynthPatch *newPatch) override;
 
@@ -285,7 +287,7 @@ protected:
     float lfo_depth = 0.0f;
     float pitchBendRange = 0.0f;
 
-    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;lfo->initialize(synthLocals,patch);}
+    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;if(patch)lfo->initialize(synthLocals,patch);}
     godot::Ref<SynthParameterSource> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
@@ -401,7 +403,7 @@ public:
         filters = newFilters;
         for(int i=0;i<filters.size();i++){
             godot::Ref<SynthFilter> filt = filters[i];
-            filt->initialize(synthLocals,patch);
+            if(filt.is_valid())filt->initialize(synthLocals,patch);
         }}
     
     godot::TypedArray<SynthFrequencyFilter> get_filters() const{return filters;}
@@ -552,11 +554,12 @@ protected:
     virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD
     
     //setgets
-    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;if(lfo.is_valid())lfo->initialize(synthLocals,patch);}
+    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;if(patch)lfo->initialize(synthLocals,patch);}
     godot::Ref<SynthParameterSource> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
     float get_lfo_depth() const{return lfo_depth;}
+
 
 public:
     float frequency = 440.0f; 
@@ -578,6 +581,9 @@ public:
 
     void set_frequency(const float newFreq){frequency = newFreq;};
     float get_frequency() const{return frequency;};
+
+    void initialize(SynthPatchLocals *newL, SimpleSynthPatch *newP) override;
+
 };
 
 class SynthResonantOscillator: public SynthFrequencyOscillator{
@@ -632,7 +638,7 @@ public:
     void set_excitation_strength(const float x) {excitation_strength = x;}
     float get_excitation_strength() const {return excitation_strength;}
     
-    void set_excitor(const godot::Ref<SynthOscillator> x){excitor = x;excitor->initialize(synthLocals,patch);}
+    void set_excitor(const godot::Ref<SynthOscillator> x){excitor = x;if(patch)excitor->initialize(synthLocals,patch);}
     godot::Ref<SynthOscillator> get_excitor() const {return excitor;}
 
     //overriding note_on and note_off to prevent ringing from breaking - TODO: Replace these with proper handling of starting and stopping
@@ -801,6 +807,8 @@ public:
 
     SynthPatchLocals synthLocals;
 
+    godot::HashMap<godot::StringName, godot::Ref<SynthResource>> namedResources;
+
     godot::TypedArray<SynthOscillator> oscillators;
     godot::TypedArray<SynthFilter> filters;
     godot::Ref<SynthParameterSource> filterFrequencyModifier;
@@ -840,6 +848,17 @@ public:
 
     //For looking up modulation channels.
     int find_modulation_channel(const godot::StringName &name) const;
+
+    float get_modulation_value(const int index) const;
+    float get_modulation_value(const godot::StringName name) const;
+
+    bool set_modulation_value(const int index, float val);
+    bool set_modulation_value(const godot::StringName name, float val);
+
+    void register_name(const godot::StringName n,godot::Ref<SynthResource> ref);
+    void unregister_name(const godot::StringName n,godot::Ref<SynthResource>);
+    
+    godot::Ref<SynthResource> find_named_resource(godot::StringName n);
 
     //Processing
     float process();

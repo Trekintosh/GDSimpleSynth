@@ -5,6 +5,7 @@
 #include "godot_cpp/core/class_db.hpp"
 #include "godot_cpp/core/defs.hpp"
 #include "godot_cpp/core/math.hpp"
+#include "godot_cpp/core/print_string.hpp"
 #include "godot_cpp/core/property_info.hpp"
 #include "godot_cpp/variant/string.hpp"
 #include "godot_cpp/variant/string_name.hpp"
@@ -15,18 +16,28 @@
 
 using namespace godot;
 
-void SynthResource::_bind_methods(){
-    //no personal methods yet
-}
-
 void SynthResource::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
     synthLocals = l;
     patch = p_patch;
+    if(patch && String(name)!=""){patch->register_name(name,this);}
+    print_line(String(get_class())+" Is initializing. PATCH ID: "+String::num_uint64(uint64_t(patch)));
 }
 
 void SynthResource::note_on(){active = true;}
 
 void SynthResource::note_off(){active = false;}
+
+void SynthResource::set_name(const StringName newName){
+    if(newName==name) return;
+
+    if(patch) patch->unregister_name(name,this);
+        
+    name = newName;
+
+    if(patch&&newName!=StringName()) patch->register_name(newName,this);
+}
+
+StringName SynthResource::get_name() const {return name;}
 
 // static float peak = 0.0f;
 // int counter = 0;
@@ -63,14 +74,21 @@ Vector3 SynthNoiseOscillator::get_noise_mix(){
     return noise_mix;
 }
 
+
+void SynthFrequencyOscillator::initialize(SynthPatchLocals *newL, SimpleSynthPatch *newP) {
+
+    SynthResource::initialize(newL,newP);
+    if(lfo.is_valid()&&patch){lfo->initialize(newL,newP);}
+}
+
+
 float SynthFrequencyOscillator::processPitch(){
     float lfoPitch = 0.0f;
     if(lfo.is_valid()){lfoPitch = lfo->process();} //if no LFO then don't LFO.
     lfoPitch *= lfo_depth;
-    float pitchbendTotal = 0.0f;
-    if(synthLocals)pitchbendTotal = synthLocals->pitchBend*pitchbendRange;
+    
 
-    float semitones = lfoPitch+semitone_offset+pitchbendTotal;
+    float semitones = lfoPitch+semitone_offset;
 
     //Convert LFO result to semitones.
     if(semitones==0.0f){return 1.0f;}
@@ -79,40 +97,40 @@ float SynthFrequencyOscillator::processPitch(){
    
 
 void SynthResonantOscillator::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
-    synthLocals = l;
-    patch = p_patch;
-    if(excitor.is_valid()){excitor->initialize(l, p_patch);}
+    SynthFrequencyOscillator::initialize(l,p_patch);
+    if(patch && excitor.is_valid()){excitor->initialize(l, p_patch);}
 }
 
 void SynthGroupOscillator::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
-    synthLocals = l;
-    patch = p_patch;
-    for(auto v : oscillators){
-        Ref<SynthPhaseOscillator> osc = v;
-        osc->initialize(l, p_patch);
+    SynthOscillator::initialize(l,p_patch);
+    if(patch){
+        for(auto v : oscillators){//WE DO NOT CHECK INITMODE HERE BECUASE WE HAVE TO INITIALIZE THE GROUP. THIS OSCILLATOR DOESN'T DO ANYTHING ON ITS OWN.
+            Ref<SynthPhaseOscillator> osc = v;
+            if(osc.is_valid())osc->initialize(l, p_patch);
+        }
+        if(frequencyADSR.is_valid()) frequencyADSR->initialize(synthLocals,patch);
     }
-    if(!frequencyADSR.is_null()) frequencyADSR->initialize(synthLocals,patch);
 }
 
 void SynthGroupOscillator::note_on(){
     active = true;
-    frequencyADSR->note_on();
+    if(frequencyADSR.is_valid())frequencyADSR->note_on();
     // print_line("hi");
     for(int i=0;i<oscillators.size();i++){
         Ref<SynthPhaseOscillator> osc = oscillators[i];
-        osc->note_on();
+        if(osc.is_valid())osc->note_on();
     }
 }
 void SynthGroupOscillator::note_off(){
-    frequencyADSR->note_off();
-    // print_line("bye");
+    if(frequencyADSR.is_valid())frequencyADSR->note_off();
+    
 }
 
 // int counter = 0;
 // float biggestOutput = 0.0f;
 float SynthGroupOscillator::process(){
     float output = 0.0f;
-    float adsrResponse = frequencyADSR->process();
+    float adsrResponse = frequencyADSR.is_valid()? frequencyADSR->process() : 0.0f;
     float adsrSemitones =  Math::lerp(min_semitones,max_semitones,adsrResponse);
     
     bool deactivate = true;
@@ -123,11 +141,13 @@ float SynthGroupOscillator::process(){
     for(int i=0; i<oscillators.size();i++){
         Ref<SynthPhaseOscillator> osc = oscillators[i];
         if(deactivate){
-            osc->note_off();
+            if(osc.is_valid())osc->note_off();
         }
         else{
-            osc->semitone_offset = adsrSemitones;
-            output+=osc->process();
+            if(osc.is_valid()){
+                osc->semitone_offset = adsrSemitones;
+                output+=osc->process();
+            }
         }
     }
     if(deactivate){
@@ -144,10 +164,10 @@ float SynthGroupOscillator::process(){
 }
 
 void SynthFeedbackOscillator::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
-    synthLocals = l;
-    patch = p_patch;
+    SynthFrequencyOscillator::initialize(l,p_patch);
     if(lowPass.is_valid()){lowPass->initialize(l, p_patch);}
     if(dcBlock.is_valid()){dcBlock->initialize(l, p_patch);}
+
 }
 
 float SynthFeedbackOscillator::read_delay(){
@@ -181,8 +201,8 @@ float SynthFeedbackOscillator::process(){
 
     sample = std::tanh(sample);
 
-    sample = lowPass->process(sample,1.0f);
-    sample = dcBlock->process(sample,1.0f);
+    if(lowPass.is_valid())sample = lowPass->process(sample,1.0f);
+    if(dcBlock.is_valid())sample = dcBlock->process(sample,1.0f);
     
     buffer[writeIndex] = sample;
 
@@ -196,19 +216,17 @@ float SynthFrequencyFilter::processCutoff(float envelopeRatio){
     float lfoPitch = 0.0f;
     if(lfo.is_valid()){lfoPitch = lfo->process();} //if no LFO then don't LFO.
     lfoPitch *= lfo_depth;
-    float pitchbendTotal = synthLocals->pitchBend*pitchBendRange;
-
-    float semitones = lfoPitch+pitchbendTotal+(envelopeAmount*envelopeRatio);
+    
+    float semitones = lfoPitch+(envelopeAmount*envelopeRatio);
     if(semitones==0.0f){return 1.0f;}
     return SynthHelper::semitones_to_ratio(semitones);
 }
 
-void SynthParallelFilter::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
-    synthLocals = l;
-    patch = p_patch;
-    for(auto v : filters){
+void SynthParallelFilter::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){ // - TODO: CHECK IF THIS IS SUPPOSED TO BE A FREQUENCYFILTER OR JUST NORMAL FILTER. I DONT SEE WHY FREQUENCY.
+    SynthFrequencyFilter::initialize(l,p_patch);
+    for(auto v : filters){//LIKE THE GROUP OSCILLATOR, WE DON'T CHECK INITMODE SINCE THIS DOES NOTHING ON ITS OWN.
         Ref<SynthFilter> filter = v;
-        filter->initialize(l, p_patch);
+        if(filter.is_valid())filter->initialize(l, p_patch);
     }
 }
 
@@ -218,7 +236,7 @@ float SynthParallelFilter::process(float input, float envelopeRatio){
     float output = 0.0f;
     for(int i=0;i<filters.size();i++){
         Ref<SynthFilter> filter = filters[i];
-        output += filter->process(input,envelopeRatio)*filter->gain;
+        if(filter.is_valid())output += filter->process(input,envelopeRatio)*filter->gain;
     }
     return output;
 }
@@ -275,7 +293,7 @@ float SynthADSR::process(){
             return 0.0f;
         
         case Attack:
-            value = Math::lerp(attackValue,1.0f,(float)sampleTime/(float)attack);
+            if(attack>0)value = Math::lerp(attackValue,1.0f,(float)sampleTime/(float)attack);
             if(sampleTime >= attack){
                 currentState = decay>0 ? Decay :  sustain>0 ? Sustain : Release;
                 sampleTime = 0;
@@ -284,7 +302,7 @@ float SynthADSR::process(){
             return value*(1.0-attenuation);
             
         case Decay:
-            value = Math::lerp(releaseValue,sustain,MIN((float)sampleTime/(float)decay, 1.0f));
+            if(decay>0)value = Math::lerp(releaseValue,sustain,MIN((float)sampleTime/(float)decay, 1.0f));
             if(sampleTime>=decay){
                 currentState = Sustain;
                 sampleTime = 0;
@@ -296,7 +314,7 @@ float SynthADSR::process(){
             return value*(1.0-attenuation);
 
         case Release:
-            value = Math::lerp(releaseValue,0.0f,MIN((float)sampleTime/(float)release,1.0f));
+            if(release>0)value = Math::lerp(releaseValue,0.0f,MIN((float)sampleTime/(float)release,1.0f));
             if(sampleTime>=release){
                 currentState = Idle;
                 value = 0.0f;
@@ -307,36 +325,45 @@ float SynthADSR::process(){
 }
 
 void SynthModulationReceiver::initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch){
-
-    patch = p_patch;
-    synthLocals = locals;
+    SynthParameterSource::initialize(locals,p_patch);
     
-    channelIndex = patch != nullptr? patch->find_modulation_channel(channelName):-1;//gotta make sure the patch is ok.
-    // notify_property_list_changed();
-    print_line("Receiver "+String(channelName)+" is tuned to channel"+String::num_int64(channelIndex)+
-        " ChannelObject = "+String::num_uint64((uint64_t)this));
+    channelIndex = patch ? patch->find_modulation_channel(channelName) : -1;//gotta make sure the patch is extant before referencing it.
 }
 
 
+void SynthModulationReceiver::set_channel_name(const StringName &n) {
+    // print_line("SET CHANNEL NAME "+godot::String(n));
+    channelName = n;
+    if(patch){channelIndex = patch->find_modulation_channel(channelName);}
+    else{channelIndex = -1;}
+
+    // notify_property_list_changed(); //Update editor.
+}
+
 
 void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo> *p_list) const{
-    if(patch==nullptr){
+    if(patch==nullptr||patch->modulation_channels.size()==0){
+        // print_line("Channel "+String(channelName)+" attempted to scan for modulation channels, but patch is not set or channel list is empty. OBJECT_ID: "+String::num_uint64((uint64_t)this)+" PATCH ID: "+String::num_uint64((uint64_t)patch));
         return;
     }
+    // print_line("Attempting to scan for modulation channels");
     String hints = "";
     for(int i=0; i<patch->modulation_channels.size();i++){
         if(i>0){hints+=",";}
         Ref<SynthModulationChannel> chan = patch->modulation_channels[i];
-        if(chan.is_valid()){hints+=String(chan->name);}
+        if(chan.is_valid()){
+            hints+=String(chan->name);}
         else{hints+="NULL";}
     }
     
+    // print_line("Found modulation channels: "+hints);
+
     PropertyInfo modchan;
     modchan.name = "modulation_channels";
     modchan.type = Variant::INT;
     modchan.hint = PROPERTY_HINT_ENUM;
     modchan.hint_string = hints;
-    modchan.usage = PROPERTY_USAGE_DEFAULT; 
+    modchan.usage = PROPERTY_USAGE_EDITOR; 
 
     p_list->push_back(modchan);
 }
@@ -344,16 +371,13 @@ void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo
 bool SynthModulationReceiver::_set(const godot::StringName &p_property, const Variant &p_value){
     if(String(p_property)=="modulation_channels"){
         int incoming_index = p_value;
-        int max_index = -1;
-        if(patch!=nullptr){max_index = patch->modulation_channels.size()-1;}
-        if(incoming_index>=0 && incoming_index<=max_index){
-            channelIndex = incoming_index;
-            Ref<SynthModulationChannel> chan = patch->modulation_channels[channelIndex];
-            if(chan.is_valid()){channelName = chan->name;}
-            else{channelIndex = -1;channelName="INVALID";}
+        if(patch && incoming_index >= 0 && incoming_index < patch->modulation_channels.size()){
+            Ref<SynthModulationChannel> chan = patch->modulation_channels[incoming_index];
+            if(chan.is_valid()){
+                channelName = chan->name;
+                channelIndex = incoming_index;
+            }
         }
-        // initialize(synthLocals,patch);
-        notify_property_list_changed();
         return true;
     }
     return SynthParameterSource::_set(p_property,p_value);
@@ -361,7 +385,8 @@ bool SynthModulationReceiver::_set(const godot::StringName &p_property, const Va
 
 bool SynthModulationReceiver::_get(const godot::StringName &p_name, godot::Variant &r_ret) const{
     if(String(p_name)=="modulation_channels"){
-        r_ret = channelIndex;
+        if(patch){r_ret = patch->find_modulation_channel(channelName);}
+        else{r_ret = -1;}
         return true;
     }
     
@@ -372,17 +397,19 @@ bool SynthModulationReceiver::_get(const godot::StringName &p_name, godot::Varia
 
 /////////////////////// SYNTH MODULATION CHANNEL STUFF ///////////////////
 void SynthModulationChannel::initialize(SynthPatchLocals *newlocals, SimpleSynthPatch *newPatch){
-    synthLocals = newlocals;
-    patch = newPatch;
+    SynthResource::initialize(newlocals,newPatch);
+    
     //Set up local sources
-    for(int i=0; i<internalSources.size();i++){
-        Ref<SynthParameterSource> src = internalSources[i];
-        if(src.is_valid()){src->initialize(synthLocals,patch);}
+    if(patch){
+        for(int i=0; i<internalSources.size();i++){
+            Ref<SynthParameterSource> src = internalSources[i];
+            if(src.is_valid()){src->initialize(newlocals,newPatch);}
+        }
     }
 
-    auto_crossfade_size = AUTO_CROSSFADE_LENGTH*(synthLocals!=nullptr? synthLocals->sampleRate:44100); //Initialize pop suppression for automatic mode.
+    auto_crossfade_size = AUTO_CROSSFADE_LENGTH*(synthLocals? synthLocals->sampleRate:44100); //Initialize pop suppression for automatic mode.
 
-    externalStepSize = int(0.016f*(synthLocals!=nullptr? synthLocals->sampleRate:44100)); //reset the external step time counter to 60fps, just in case.
+    externalStepSize = int(0.016f*(synthLocals? synthLocals->sampleRate:44100)); //reset the external step time counter to 60fps, just in case.
     // notify_property_list_changed();
 }
 
@@ -405,30 +432,24 @@ void SynthModulationChannel::note_off(){
 }
 
 void SynthModulationChannel::set_internal_sources(const TypedArray<SynthParameterSource> &p_sources){
-    internalSources = p_sources;
-    initialize(synthLocals,patch);
+    if(internalSources!=p_sources){
+        internalSources = p_sources;
+        initialize(synthLocals,patch);
+    }
 }
 
 TypedArray<SynthParameterSource> SynthModulationChannel::get_internal_sources() const {
     return internalSources;
 }
 
-void SynthModulationChannel::set_name(const godot::StringName newName){
-    name = newName;
-    if(patch!=nullptr){patch->initialize();}
-}
-
-StringName SynthModulationChannel::get_name() const{return name;}
-
-
 void SynthModulationChannel::set_value(const float x){
     externalPreviousValue = externalValue;
     externalTargetValue = x;
     //Update interval and stuff
-    externalStepSize = CLAMP(samplesSinceExternal,1,0.5f*synthLocals->sampleRate);
+    externalStepSize = CLAMP(samplesSinceExternal,1,0.5f*(synthLocals? synthLocals->sampleRate:44100)); //default to 44.1khz if no sample rate
     externalInterpCurrentSample = 0;
     samplesSinceExternal = 0;
-    autoTimeoutRemaining = auto_timeout*synthLocals->sampleRate;
+    autoTimeoutRemaining = auto_timeout*(synthLocals? synthLocals->sampleRate:44100); //default to 44.1khz if no sample rate
 }
 
 
@@ -556,7 +577,10 @@ SimpleSynthPatch::SimpleSynthPatch(){ // Modulation channel defaults
 }
 
 void SimpleSynthPatch::initialize(){
-    
+    print_line("SimpleSynthPatch initializing. My ID:"+String::num_uint64(uint64_t(this))+".");
+
+    namedResources.clear();
+
     for(auto v : modulation_channels){
         Ref<SynthModulationChannel> chan = v;
         if(chan.is_valid()) {chan->initialize(&synthLocals,this);}
@@ -569,28 +593,73 @@ void SimpleSynthPatch::initialize(){
     
     for(auto v : filters){
         Ref<SynthFilter> filt = v;
-        filt->initialize(&synthLocals, this);
+        if(filt.is_valid())filt->initialize(&synthLocals, this);
     }
 
 
     if(!filterFrequencyModifier.is_null()) filterFrequencyModifier->initialize(&synthLocals,this);
     if(!preFilterAmplitudeModifier.is_null()) preFilterAmplitudeModifier->initialize(&synthLocals,this);
     if(!postFilterAmplitudeModifier.is_null()) postFilterAmplitudeModifier->initialize(&synthLocals,this);
-
+    
+    // notify_property_list_changed();
 }
 
 int SimpleSynthPatch::find_modulation_channel(const StringName &name)const{
-    print_line("Trying to find modulation channel"+String(name));
+    // print_line("Trying to find modulation channel "+String(name));
     for (int i = 0; i < modulation_channels.size(); ++i){
         Ref<SynthModulationChannel> chan = modulation_channels[i];
         if(!chan.is_valid()){continue;}
-        print_line("Comparing modulation channel "+chan->name);
+        // print_line("Comparing modulation channel "+chan->name);
         if (chan->name == name){
-            print_line("Found channel at index "+String::num_int64(i));
+            // print_line("Found channel at index "+String::num_int64(i));
             return i;
         }
     }
     return -1;
+}
+
+void SimpleSynthPatch::register_name(StringName n, Ref<SynthResource> ref){ //This function can be used to register any stringname to any synthresource reference. We overwrite any references but warn the user just in case. No errors when overwriting the same reference because who gives a shit?
+    if(namedResources.has(n)&&namedResources[n]!=ref){WARN_PRINT("Warning: Duplicate resource is being registered with name "+n+"! Overwriting previous reference! If the reference was stale, you can ignore this warning.");}
+    namedResources[n] = ref;
+}
+
+void SimpleSynthPatch::unregister_name(StringName n, Ref<SynthResource> ref){
+    if(!namedResources.has(n)) return;
+    if(namedResources[n]==ref) namedResources.erase(n);
+}
+
+Ref<SynthResource> SimpleSynthPatch::find_named_resource(StringName n){
+    if(namedResources.has(n)){return namedResources[n];}
+    else{return {};}
+}
+
+float SimpleSynthPatch::get_modulation_value(int index) const{
+    return index>0&&index<synthLocals.modulation.size() ? synthLocals.modulation[index] : 0.0f;
+}
+float SimpleSynthPatch::get_modulation_value(StringName name) const{
+    int index = find_modulation_channel(name);
+    if(index<0)return 0;
+    return synthLocals.modulation[index];
+}
+
+bool SimpleSynthPatch::set_modulation_value(int index, float val) {
+    if(index<0||index>=modulation_channels.size()){return false;}
+    Ref<SynthModulationChannel> chan = modulation_channels[index];
+    if(chan.is_valid()){
+        chan->set_value(val);
+        return true;
+    }
+    return false;
+}
+bool SimpleSynthPatch::set_modulation_value(StringName name, float val) {
+    int index = find_modulation_channel(name);
+    if(index<0)return false;
+    Ref<SynthModulationChannel> chan = modulation_channels[index];
+    if(chan.is_valid()){
+        chan->set_value(val);
+        return true;
+    }
+    return false;
 }
 
 ///////////////////// SIMPLE SYNTH PATCH ACTUAL PROCESSING ///////////////////
@@ -677,6 +746,15 @@ void SimpleSynthPatch::note_off(){
 }
 
 ///////////////////// BIND METHODS /////////////////////
+
+//SynthResource bindings
+void SynthResource::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("reset"), &SynthResource::reset);
+    ClassDB::bind_method(D_METHOD("set_active","active"), &SynthResource::set_active);
+    ClassDB::bind_method(D_METHOD("get_active"), &SynthResource::get_active);
+
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL,"active",PROPERTY_HINT_NONE,"",PROPERTY_USAGE_NONE), "set_active", "get_active");
+}
 
 // SynthParameterSource bindings
 void SynthParameterSource::_bind_methods(){
@@ -994,8 +1072,11 @@ void SimpleSynthPatch::_bind_methods(){
     //Actual functions
     ClassDB::bind_method(D_METHOD("note_on"),&SimpleSynthPatch::note_on);
     ClassDB::bind_method(D_METHOD("note_off"),&SimpleSynthPatch::note_off);
-
-    ClassDB::bind_method(D_METHOD("set_pitch_bend","pitch bend (semitones)"),&SimpleSynthPatch::set_pitch_bend);
-    ClassDB::bind_method(D_METHOD("get_pitch_bend"),&SimpleSynthPatch::get_pitch_bend);
-    
+    ClassDB::bind_method(D_METHOD("find_modulation_channel","name"), &SimpleSynthPatch::find_modulation_channel);
+    ClassDB::bind_method(D_METHOD("find_named_resource","name"), &SimpleSynthPatch::find_named_resource);
+    ClassDB::bind_method(D_METHOD("get_modulation_value","index"),static_cast<float (SimpleSynthPatch::*)(int) const>(&SimpleSynthPatch::get_modulation_value));
+    ClassDB::bind_method(D_METHOD("set_modulation_value","index","value"),static_cast<bool (SimpleSynthPatch::*)(int,float)>(&SimpleSynthPatch::set_modulation_value));
+    ClassDB::bind_method(D_METHOD("get_modulation_value_by_name","name"),static_cast<float (SimpleSynthPatch::*)(StringName) const>(&SimpleSynthPatch::get_modulation_value));
+    ClassDB::bind_method(D_METHOD("set_modulation_value_by_name","name","value"),static_cast<bool (SimpleSynthPatch::*)(StringName,float)>(&SimpleSynthPatch::set_modulation_value));
+    ClassDB::bind_method(D_METHOD("initialize"), &SimpleSynthPatch::initialize);
 }
