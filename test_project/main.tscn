@@ -2,23 +2,28 @@
 
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
+[ext_resource type="SynthModulationReceiver" uid="uid://dtb6vwqjolxms" path="res://hytdhydth.tres" id="2_h2yge"]
 
-[sub_resource type="SynthLFO" id="SynthLFO_0xm2m"]
-"LFO rate (hz)" = 40.0
+[sub_resource type="SynthLFO" id="SynthLFO_n8wo2"]
+
+[sub_resource type="SynthModulationChannel" id="SynthModulationChannel_j3pel"]
+name = &"test"
+internal_sources = Array[SynthParameterSource]([SubResource("SynthLFO_n8wo2")])
 
 [sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_h2yge"]
 feedback = 1.625
 breath = 0.625
 cutoff = 0.0
 "Oscillator Frequency (hz)" = 415.3047
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_0xm2m")
-"LFO Frequency span (semitones)" = 1.0
+"LFO(Low Frequency Oscillator)" = ExtResource("2_h2yge")
+"LFO Frequency span (semitones)" = 25.0
 "Oscillator Note" = 8
 "Pitch Bend Range (semitones)" = -4.0
 Gain = 0.5
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_1bvp3"]
 Oscillators = Array[SynthOscillator]([SubResource("SynthFeedbackOscillator_h2yge")])
+"Modulation Chnanel List" = Array[SynthModulationChannel]([SubResource("SynthModulationChannel_j3pel")])
 
 [sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
 

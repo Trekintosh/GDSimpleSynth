@@ -146,13 +146,17 @@ public:
     float process() override
     {
         if(channelIndex < 0)
-            return 0.5f;
+            return 0.0f;
         return synthLocals->modulation[channelIndex]*(1.0-attenuation);
     }
 
     void _get_property_list(godot::List<godot::PropertyInfo> *p_list) const;
     bool _get(const godot::StringName &p_name, godot::Variant &r_ret) const;
     bool _set(const godot::StringName &p_name, const godot::Variant &p_value);
+
+    void set_channel_name(const godot::StringName &n){print_line("SET CHANNEL NAME "+godot::String(n)+
+               " object=" + godot::String::num_uint64((uint64_t)this));channelName = n;}
+    godot::StringName get_channel_name() const {return channelName;}
 };
 
 
@@ -196,6 +200,24 @@ public:
 
     void set_value(const float nVal);
     float get_value() const{return value;}
+
+    void set_clamp(const bool x){clamp_output = x;}
+    bool get_clamp() const {return clamp_output;}
+
+    void set_auto_timeout(const float x){auto_timeout = x;}
+    float get_auto_timeout() const {return auto_timeout;}
+
+    void set_mode(int x){mode = static_cast<modes>(x);};
+    int get_mode(){return static_cast<int>(mode);};
+
+    void set_internal_blend_mix(const float x){internal_blend_mix = x;}
+    float get_internal_blend_mix()const{return internal_blend_mix;}
+
+    void set_external_blend_mix(const float x){external_blend_mix = x;}
+    float get_external_blend_mix()const{return external_blend_mix;}
+
+    void set_internal_sources(const godot::TypedArray<SynthParameterSource> &p_sources);
+    godot::TypedArray<SynthParameterSource> get_internal_sources() const;
 
     virtual float process();
 private:
@@ -530,7 +552,7 @@ protected:
     virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD
     
     //setgets
-    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;lfo->initialize(synthLocals,patch);}
+    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;if(lfo.is_valid())lfo->initialize(synthLocals,patch);}
     godot::Ref<SynthParameterSource> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
@@ -785,7 +807,7 @@ public:
     godot::Ref<SynthParameterSource> preFilterAmplitudeModifier;
     godot::Ref<SynthParameterSource> postFilterAmplitudeModifier;
 
-    godot::TypedArray<godot::StringName> modulation_channels;
+    godot::TypedArray<SynthModulationChannel> modulation_channels;
     
 
     float frequencyOffset = 0.0f;
@@ -811,8 +833,8 @@ public:
     void set_filters(const godot::TypedArray<SynthFilter> newFilters);
     godot::TypedArray<SynthFilter> get_filters() const;
 
-    void set_modulation_channels(const godot::TypedArray<godot::StringName>);
-    godot::TypedArray<godot::StringName> get_modulation_channels() const;
+    void set_modulation_channels(const godot::TypedArray<SynthModulationChannel>);
+    godot::TypedArray<SynthModulationChannel> get_modulation_channels() const;
 
     void initialize(); //Initializes all children, passes the context down.
 

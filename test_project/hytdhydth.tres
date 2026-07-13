@@ -1,0 +1,5 @@
+[gd_resource type="SynthModulationReceiver" format=3 uid="uid://dtb6vwqjolxms"]
+
+[resource]
+channel_name = &"test"
+modulation_channels = 0

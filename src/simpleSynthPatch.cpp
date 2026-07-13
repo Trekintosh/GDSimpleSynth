@@ -10,6 +10,7 @@
 #include "godot_cpp/variant/string_name.hpp"
 #include "godot_cpp/variant/typed_array.hpp"
 #include "godot_cpp/variant/vector3.hpp"
+#include <cstdint>
 #include <cstdlib>
 
 using namespace godot;
@@ -311,8 +312,11 @@ void SynthModulationReceiver::initialize(SynthPatchLocals *locals, SimpleSynthPa
     synthLocals = locals;
     
     channelIndex = patch != nullptr? patch->find_modulation_channel(channelName):-1;//gotta make sure the patch is ok.
-    notify_property_list_changed();
+    // notify_property_list_changed();
+    print_line("Receiver "+String(channelName)+" is tuned to channel"+String::num_int64(channelIndex)+
+        " ChannelObject = "+String::num_uint64((uint64_t)this));
 }
+
 
 
 void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo> *p_list) const{
@@ -322,7 +326,9 @@ void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo
     String hints = "";
     for(int i=0; i<patch->modulation_channels.size();i++){
         if(i>0){hints+=",";}
-        hints+=String(patch->modulation_channels[i]);
+        Ref<SynthModulationChannel> chan = patch->modulation_channels[i];
+        if(chan.is_valid()){hints+=String(chan->name);}
+        else{hints+="NULL";}
     }
     
     PropertyInfo modchan;
@@ -338,15 +344,16 @@ void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo
 bool SynthModulationReceiver::_set(const godot::StringName &p_property, const Variant &p_value){
     if(String(p_property)=="modulation_channels"){
         int incoming_index = p_value;
-        int max_index = patch->modulation_channels.size()-1;
+        int max_index = -1;
+        if(patch!=nullptr){max_index = patch->modulation_channels.size()-1;}
         if(incoming_index>=0 && incoming_index<=max_index){
             channelIndex = incoming_index;
-            channelName = patch->modulation_channels[channelIndex];
+            Ref<SynthModulationChannel> chan = patch->modulation_channels[channelIndex];
+            if(chan.is_valid()){channelName = chan->name;}
+            else{channelIndex = -1;channelName="INVALID";}
         }
-        else{
-            channelIndex = -1;
-            channelName="";
-        }
+        // initialize(synthLocals,patch);
+        notify_property_list_changed();
         return true;
     }
     return SynthParameterSource::_set(p_property,p_value);
@@ -357,6 +364,7 @@ bool SynthModulationReceiver::_get(const godot::StringName &p_name, godot::Varia
         r_ret = channelIndex;
         return true;
     }
+    
     return SynthParameterSource::_get(p_name, r_ret);
 }
 
@@ -367,19 +375,20 @@ void SynthModulationChannel::initialize(SynthPatchLocals *newlocals, SimpleSynth
     synthLocals = newlocals;
     patch = newPatch;
     //Set up local sources
-    for(int i; i<internalSources.size();i++){
+    for(int i=0; i<internalSources.size();i++){
         Ref<SynthParameterSource> src = internalSources[i];
         if(src.is_valid()){src->initialize(synthLocals,patch);}
     }
 
-    auto_crossfade_size = AUTO_CROSSFADE_LENGTH*synthLocals->sampleRate; //Initialize pop suppression for automatic mode.
+    auto_crossfade_size = AUTO_CROSSFADE_LENGTH*(synthLocals!=nullptr? synthLocals->sampleRate:44100); //Initialize pop suppression for automatic mode.
 
-    externalStepSize = int(0.016f*synthLocals->sampleRate); //reset the external step time counter to 60fps, just in case.
+    externalStepSize = int(0.016f*(synthLocals!=nullptr? synthLocals->sampleRate:44100)); //reset the external step time counter to 60fps, just in case.
+    // notify_property_list_changed();
 }
 
 void SynthModulationChannel::note_on(){
     active = true;
-    for(int i; i<internalSources.size();i++){
+    for(int i=0; i<internalSources.size();i++){
         Ref<SynthParameterSource> src = internalSources[i];
         if(src.is_valid()){src->note_on();}
     }
@@ -388,16 +397,25 @@ void SynthModulationChannel::note_on(){
 void SynthModulationChannel::note_off(){
     //Iterate through the internal sources and check if they're all off. Only turn off active if they are.
     bool newActive = false;
-    for(int i; i<internalSources.size();i++){
+    for(int i=0; i<internalSources.size();i++){
         Ref<SynthParameterSource> src = internalSources[i];
         if(src.is_valid()&&src->active){newActive = true;}
         }
     active = newActive;
 }
 
+void SynthModulationChannel::set_internal_sources(const TypedArray<SynthParameterSource> &p_sources){
+    internalSources = p_sources;
+    initialize(synthLocals,patch);
+}
+
+TypedArray<SynthParameterSource> SynthModulationChannel::get_internal_sources() const {
+    return internalSources;
+}
+
 void SynthModulationChannel::set_name(const godot::StringName newName){
     name = newName;
-    patch->initialize();
+    if(patch!=nullptr){patch->initialize();}
 }
 
 StringName SynthModulationChannel::get_name() const{return name;}
@@ -417,7 +435,7 @@ void SynthModulationChannel::set_value(const float x){
 float SynthModulationChannel::process(){
     //INTERNAL STUFF
     float internalOutput = 0.0f;
-    for(int i;i<internalSources.size();i++){
+    for(int i=0;i<internalSources.size();i++){
         Ref<SynthParameterSource> src = internalSources[i];
         if(src.is_valid()){
             internalOutput+=src->process();
@@ -501,7 +519,7 @@ TypedArray<SynthFilter> SimpleSynthPatch::get_filters() const{
     return filters;
 }
 
-void SimpleSynthPatch::set_modulation_channels(const TypedArray<StringName> newChannels){
+void SimpleSynthPatch::set_modulation_channels(const TypedArray<SynthModulationChannel> newChannels){
     if(newChannels!=modulation_channels){
         modulation_channels = newChannels;
         if(modulation_channels.size()>synthLocals.modulation.size()){synthLocals.modulation.resize(modulation_channels.size());}
@@ -509,29 +527,51 @@ void SimpleSynthPatch::set_modulation_channels(const TypedArray<StringName> newC
     }
 }
 
-TypedArray<StringName> SimpleSynthPatch::get_modulation_channels() const {
+TypedArray<SynthModulationChannel> SimpleSynthPatch::get_modulation_channels() const {
     return modulation_channels;
 }
 
 //////////////SIMPLE SYNTH PATCH INIT///////////////
 SimpleSynthPatch::SimpleSynthPatch(){ // Modulation channel defaults
-    modulation_channels.push_back("Pitch Bend");
-    modulation_channels.push_back("Mod Wheel");
-    modulation_channels.push_back("Velocity");
-    synthLocals.modulation.resize(16);
+    Ref<SynthModulationChannel> pitch;
+    pitch.instantiate();
+    pitch->initialize(&synthLocals,this);
+    pitch->set_name("Pitch Bend");
+
+    Ref<SynthModulationChannel> mod;
+    mod.instantiate();
+    mod->initialize(&synthLocals,this);
+    mod->set_name("Mod Wheel");
+
+    Ref<SynthModulationChannel> velocity;
+    velocity.instantiate();
+    velocity->initialize(&synthLocals,this);
+    velocity->set_name("Velocity");
+
+    modulation_channels.push_back(pitch);
+    modulation_channels.push_back(mod);
+    modulation_channels.push_back(velocity);
+
+    synthLocals.modulation.resize(modulation_channels.size());
 }
 
 void SimpleSynthPatch::initialize(){
     
+    for(auto v : modulation_channels){
+        Ref<SynthModulationChannel> chan = v;
+        if(chan.is_valid()) {chan->initialize(&synthLocals,this);}
+    }
+    
     for(auto v : oscillators){
         Ref<SynthOscillator> osc = v;
-        osc->initialize(&synthLocals, this);
+        if(osc.is_valid()){osc->initialize(&synthLocals, this);}
     }
     
     for(auto v : filters){
         Ref<SynthFilter> filt = v;
         filt->initialize(&synthLocals, this);
     }
+
 
     if(!filterFrequencyModifier.is_null()) filterFrequencyModifier->initialize(&synthLocals,this);
     if(!preFilterAmplitudeModifier.is_null()) preFilterAmplitudeModifier->initialize(&synthLocals,this);
@@ -540,19 +580,30 @@ void SimpleSynthPatch::initialize(){
 }
 
 int SimpleSynthPatch::find_modulation_channel(const StringName &name)const{
-    for (int i = 0; i < modulation_channels.size(); ++i)
-    {
-        if (modulation_channels[i] == name)
+    print_line("Trying to find modulation channel"+String(name));
+    for (int i = 0; i < modulation_channels.size(); ++i){
+        Ref<SynthModulationChannel> chan = modulation_channels[i];
+        if(!chan.is_valid()){continue;}
+        print_line("Comparing modulation channel "+chan->name);
+        if (chan->name == name){
+            print_line("Found channel at index "+String::num_int64(i));
             return i;
+        }
     }
     return -1;
 }
 
 ///////////////////// SIMPLE SYNTH PATCH ACTUAL PROCESSING ///////////////////
 float SimpleSynthPatch::process(){
-    if(oscillators.size()==0){
-        return 0.0f;
+    //MODULATION BLOCK
+
+    for(int i=0; i<modulation_channels.size();i++){
+        Ref<SynthModulationChannel> chan = modulation_channels[i];
+        if(chan.is_valid()){
+            synthLocals.modulation[i] = chan->process();
+        }
     }
+
     ///OSCILLATOR BLOCK
     float output = 0.0f;
     for(int i = 0; i<oscillators.size();i++){
@@ -560,6 +611,7 @@ float SimpleSynthPatch::process(){
         if(!osc.is_null()){output += osc->process()*osc->gain;}
     }
     if(preFilterAmplitudeModifier.is_valid()){output *= preFilterAmplitudeModifier->process();}
+
     ///FILTER BLOCK
     float freqEnvelope = 1.0f;
     if(filterFrequencyModifier.is_valid()){freqEnvelope = filterFrequencyModifier->process();} //Get our frequency ratio first.
@@ -649,10 +701,60 @@ void SynthLFO::_bind_methods(){
 
 //SynthModulationReceiver bindings
 void SynthModulationReceiver::_bind_methods(){
-    // ClassDB::bind_method(D_METHOD("_get_property_list"), &SynthModulationReceiver::_get_property_list);
-    // ClassDB::bind_method(D_METHOD("_set", "property", "value"), &SynthModulationReceiver::_set);
-    // ClassDB::bind_method(D_METHOD("_get", "property"), &SynthModulationReceiver::_get);
+    ClassDB::bind_method(D_METHOD("set_channel_name","name"),&SynthModulationReceiver::set_channel_name);
+    ClassDB::bind_method(D_METHOD("get_channel_name"),&SynthModulationReceiver::get_channel_name);
+
+    ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME,"channel_name",PROPERTY_HINT_NONE,"",PROPERTY_USAGE_STORAGE),
+    "set_channel_name",
+    "get_channel_name");
 }
+
+void SynthModulationChannel::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_name", "name"), &SynthModulationChannel::set_name);
+    ClassDB::bind_method(D_METHOD("get_name"), &SynthModulationChannel::get_name);
+
+    ClassDB::bind_method(D_METHOD("set_value", "value"), &SynthModulationChannel::set_value);
+    ClassDB::bind_method(D_METHOD("get_value"), &SynthModulationChannel::get_value);
+
+    ClassDB::bind_method(D_METHOD("set_clamp", "enabled"), &SynthModulationChannel::set_clamp);
+    ClassDB::bind_method(D_METHOD("get_clamp"), &SynthModulationChannel::get_clamp);
+
+    ClassDB::bind_method(D_METHOD("set_auto_timeout", "seconds"), &SynthModulationChannel::set_auto_timeout);
+    ClassDB::bind_method(D_METHOD("get_auto_timeout"), &SynthModulationChannel::get_auto_timeout);
+    
+    ClassDB::bind_method(D_METHOD("set_internal_sources", "sources"),&SynthModulationChannel::set_internal_sources);
+    ClassDB::bind_method(D_METHOD("get_internal_sources"),&SynthModulationChannel::get_internal_sources); 
+    
+    ClassDB::bind_method(D_METHOD("set_mode", "mode"), &SynthModulationChannel::set_mode);
+    ClassDB::bind_method(D_METHOD("get_mode"), &SynthModulationChannel::get_mode);
+
+    // Properties
+    ADD_PROPERTY(
+        PropertyInfo(Variant::STRING_NAME, "name"),
+        "set_name","get_name");
+
+    ADD_PROPERTY(
+        PropertyInfo(Variant::BOOL, "clamp_output"),
+        "set_clamp","get_clamp");
+
+    ADD_PROPERTY(
+        PropertyInfo(Variant::FLOAT,"auto_timeout",PROPERTY_HINT_RANGE,"0,10,0.001,suffix:s"),
+        "set_auto_timeout","get_auto_timeout");
+
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"mode",PROPERTY_HINT_ENUM,"AUTO,EXTERNAL,BLEND"),
+    "set_mode","get_mode");
+
+    ADD_PROPERTY(
+        PropertyInfo(Variant::ARRAY,"internal_sources",PROPERTY_HINT_ARRAY_TYPE,"SynthParameterSource"),
+        "set_internal_sources","get_internal_sources"
+    );
+
+    // Enum
+//     BIND_ENUM_CONSTANT(AUTO);
+//     BIND_ENUM_CONSTANT(EXTERNAL);
+//     BIND_ENUM_CONSTANT(BLEND);
+}
+
 
 // SynthOscillator bindings
 void SynthOscillator::_bind_methods(){
@@ -886,7 +988,7 @@ void SimpleSynthPatch::_bind_methods(){
 
     ClassDB::bind_method(D_METHOD("set_modulation_channels","Channel List"),&SimpleSynthPatch::set_modulation_channels);
     ClassDB::bind_method(D_METHOD("get_modulation_channels"),&SimpleSynthPatch::get_modulation_channels);
-    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Modulation Chnanel List",PROPERTY_HINT_ARRAY_TYPE,"StringName"),"set_modulation_channels","get_modulation_channels");
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Modulation Chnanel List",PROPERTY_HINT_ARRAY_TYPE,"SynthModulationChannel"),"set_modulation_channels","get_modulation_channels");
 
 
     //Actual functions
