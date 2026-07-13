@@ -44,7 +44,12 @@ protected:
     static void _bind_methods();
 
 public:
-    virtual float process(){return 1.0f;}
+    float attenuation = 0.0f;
+
+    virtual void set_attenuation(const float x) {attenuation = x;}
+    virtual float get_attenuation() const {return attenuation;}
+
+    virtual float process(){return 1.0f*(1.0-attenuation);}
 };
 
 class SynthConstantParameter: public SynthParameterSource{
@@ -53,7 +58,7 @@ protected:
     float output = 1.0f;
     static void _bind_methods();
     void set_output(const float x){output = x;}
-    float get_output() const {return output;}
+    float get_output() const {return output*(1.0-attenuation);}
 };
 
 //This is a class to hold ADSR stuff
@@ -115,7 +120,7 @@ public:
     float process() override{
         phase += rate/sampleRate;
         while(phase>=1.0f){phase-=1.0f;}
-        return std::sin(Math_TAU*phase);
+        return std::sin(Math_TAU*phase)*(1.0-attenuation);
     };
     float phase = 0.0f;
     float rate = 1.0f;
@@ -142,11 +147,10 @@ public:
     {
         if(channelIndex < 0)
             return 0.5f;
-
-        return synthLocals->modulation[channelIndex];
+        return synthLocals->modulation[channelIndex]*(1.0-attenuation);
     }
 
-    godot::Array _get_property_list(godot::List<godot::PropertyInfo> *p_list) const;
+    void _get_property_list(godot::List<godot::PropertyInfo> *p_list) const;
     bool _get(const godot::StringName &p_name, godot::Variant &r_ret) const;
     bool _set(const godot::StringName &p_name, const godot::Variant &p_value);
 };
@@ -154,7 +158,60 @@ public:
 
 
 
+//-------------MODULATION CHANNELS-----------------
+class SynthModulationChannel: public SynthResource{
+    GDCLASS(SynthModulationChannel,SynthResource)
+protected:
+    static void _bind_methods();
+public:
+    float value = 0.0f;
+    float internalValue = 0.0f;
+    float externalValue = 0.0f;
 
+    bool clamp_output = false;
+
+    float internal_blend_mix = 1.0f;
+    float external_blend_mix = 1.0f;
+
+    float auto_timeout = 0.5f;//How long until auto mode releases to the internal controls.
+
+    godot::StringName name = "";
+
+    godot::TypedArray<SynthParameterSource> internalSources;
+
+    enum modes{
+        AUTO,
+        EXTERNAL,
+        BLEND,
+    };
+    modes mode = AUTO;
+
+    void set_name(const godot::StringName newName);
+    godot::StringName get_name() const;
+
+    void initialize(SynthPatchLocals *locals, SimpleSynthPatch *newPatch) override;
+
+    void note_on() override;
+    void note_off() override;
+
+    void set_value(const float nVal);
+    float get_value() const{return value;}
+
+    virtual float process();
+private:
+    //auto mode stuff
+    int autoTimeoutRemaining = 0;
+    int autoCrossfadeAccumulator = 0;
+    int auto_crossfade_size = 0;
+    constexpr static float AUTO_CROSSFADE_LENGTH = 0.002f;
+
+    //external smoothing stuff.
+    int externalStepSize = int(0.016*44100.0f);
+    int samplesSinceExternal = 0;
+    int externalInterpCurrentSample = 0;
+    float externalPreviousValue = 0.0f;
+    float externalTargetValue = 0.0f;
+};
 
 
 
@@ -202,12 +259,12 @@ protected:
     static void _bind_methods();
     virtual float processCutoff(float envelopeRatio); //Overridable in case things get weird
 
-    godot::Ref<SynthLFO> lfo;
+    godot::Ref<SynthParameterSource> lfo;
     float lfo_depth = 0.0f;
     float pitchBendRange = 0.0f;
 
-    void set_lfo(const godot::Ref<SynthLFO> newlfo){lfo = newlfo;}
-    godot::Ref<SynthLFO> get_lfo() const{return lfo;}
+    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;lfo->initialize(synthLocals,patch);}
+    godot::Ref<SynthParameterSource> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
     float get_lfo_depth() const{return lfo_depth;}
@@ -317,10 +374,13 @@ protected:
 public:
     void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
     float process(float input,float envelopeRatio) override;
-     godot::TypedArray<SynthFrequencyFilter> filters;
-     void set_filters(const godot::TypedArray<SynthFrequencyFilter> newFilters){
+     godot::TypedArray<SynthFilter> filters;
+     void set_filters(const godot::TypedArray<SynthFilter> newFilters){
         filters = newFilters;
-        set_cutoff(cutoff);}//Force recalculate of resonance ratios.
+        for(int i=0;i<filters.size();i++){
+            godot::Ref<SynthFilter> filt = filters[i];
+            filt->initialize(synthLocals,patch);
+        }}
     
     godot::TypedArray<SynthFrequencyFilter> get_filters() const{return filters;}
 };
@@ -464,14 +524,14 @@ class SynthFrequencyOscillator: public SynthOscillator{
     GDCLASS(SynthFrequencyOscillator, SynthOscillator)
 protected:
     static void _bind_methods();
-    godot::Ref<SynthLFO> lfo;
+    godot::Ref<SynthParameterSource> lfo;
     float lfo_depth = 0.0f;
     float pitchbendRange = 0.0f;
     virtual float processPitch(); //For processing the LFO but can be overwritten if an oscillator needs to get WEIRD
     
     //setgets
-    void set_lfo(const godot::Ref<SynthLFO> newlfo){lfo = newlfo;}
-    godot::Ref<SynthLFO> get_lfo() const{return lfo;}
+    void set_lfo(const godot::Ref<SynthParameterSource> newlfo){lfo = newlfo;lfo->initialize(synthLocals,patch);}
+    godot::Ref<SynthParameterSource> get_lfo() const{return lfo;}
 
     void set_lfo_depth(const float newdepth){lfo_depth = newdepth;}
     float get_lfo_depth() const{return lfo_depth;}
@@ -550,7 +610,7 @@ public:
     void set_excitation_strength(const float x) {excitation_strength = x;}
     float get_excitation_strength() const {return excitation_strength;}
     
-    void set_excitor(const godot::Ref<SynthOscillator> x){excitor = x;}
+    void set_excitor(const godot::Ref<SynthOscillator> x){excitor = x;excitor->initialize(synthLocals,patch);}
     godot::Ref<SynthOscillator> get_excitor() const {return excitor;}
 
     //overriding note_on and note_off to prevent ringing from breaking - TODO: Replace these with proper handling of starting and stopping
@@ -632,7 +692,7 @@ protected:
 
 public:
     godot::TypedArray<SynthPhaseOscillator> oscillators;
-    godot::Ref<SynthADSR> frequencyADSR;
+    godot::Ref<SynthParameterSource> frequencyADSR;
     float min_semitones = -4.0f; //How many semitones below the target's note can it go?
     float max_semitones = 4.0f; //The upper end of the ADSR compared to the target's target frequency.
 
@@ -644,10 +704,10 @@ public:
     void note_off() override;
 
     //setgets
-    void set_oscillators(const godot::TypedArray<SynthPhaseOscillator> newOsc){oscillators = newOsc;};
+    void set_oscillators(const godot::TypedArray<SynthPhaseOscillator> newOsc){oscillators = newOsc;initialize(synthLocals,patch);};
     godot::TypedArray<SynthPhaseOscillator> get_oscillators(){return oscillators;};
 
-    void set_freq_adsr(const godot::Ref<SynthADSR> newADSR){frequencyADSR = newADSR;};
+    void set_freq_adsr(const godot::Ref<SynthADSR> newADSR){frequencyADSR = newADSR;initialize(synthLocals,patch);};
     godot::Ref<SynthADSR> get_freq_adsr(){return frequencyADSR;};
 
     void set_min_semitones(const float x){min_semitones = x;}
@@ -751,13 +811,13 @@ public:
     void set_filters(const godot::TypedArray<SynthFilter> newFilters);
     godot::TypedArray<SynthFilter> get_filters() const;
 
-    void set_modulation_channels(godot::TypedArray<godot::StringName>);
-    godot::TypedArray<godot::StringName> get_modulation_channels();
+    void set_modulation_channels(const godot::TypedArray<godot::StringName>);
+    godot::TypedArray<godot::StringName> get_modulation_channels() const;
 
     void initialize(); //Initializes all children, passes the context down.
 
     //For looking up modulation channels.
-    int find_modulation_channel(godot::StringName &name);
+    int find_modulation_channel(const godot::StringName &name) const;
 
     //Processing
     float process();

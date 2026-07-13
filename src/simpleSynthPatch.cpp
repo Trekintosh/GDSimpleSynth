@@ -1,4 +1,5 @@
 #include "simpleSynthPatch.hpp"
+#include "godot_cpp/classes/engine.hpp"
 #include "godot_cpp/classes/global_constants.hpp"
 #include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/core/class_db.hpp"
@@ -89,6 +90,7 @@ void SynthGroupOscillator::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_p
         Ref<SynthPhaseOscillator> osc = v;
         osc->initialize(l, p_patch);
     }
+    if(!frequencyADSR.is_null()) frequencyADSR->initialize(synthLocals,patch);
 }
 
 void SynthGroupOscillator::note_on(){
@@ -276,9 +278,9 @@ float SynthADSR::process(){
             if(sampleTime >= attack){
                 currentState = decay>0 ? Decay :  sustain>0 ? Sustain : Release;
                 sampleTime = 0;
-                releaseValue = value;
+                releaseValue = value*(1.0-attenuation);
             }
-            return value;
+            return value*(1.0-attenuation);
             
         case Decay:
             value = Math::lerp(releaseValue,sustain,MIN((float)sampleTime/(float)decay, 1.0f));
@@ -286,11 +288,11 @@ float SynthADSR::process(){
                 currentState = Sustain;
                 sampleTime = 0;
             }
-            return value;
+            return value*(1.0-attenuation);
 
         case Sustain:
             value = sustain;
-            return value;
+            return value*(1.0-attenuation);
 
         case Release:
             value = Math::lerp(releaseValue,0.0f,MIN((float)sampleTime/(float)release,1.0f));
@@ -298,36 +300,39 @@ float SynthADSR::process(){
                 currentState = Idle;
                 value = 0.0f;
             }
-            return value;
-        return value;
+            return value*(1.0-attenuation);
+        return value*(1.0-attenuation);
     }
 }
 
 void SynthModulationReceiver::initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch){
-        patch = p_patch;
-        synthLocals = locals;
 
-        channelIndex = patch->find_modulation_channel(channelName);
+    patch = p_patch;
+    synthLocals = locals;
+    
+    channelIndex = patch != nullptr? patch->find_modulation_channel(channelName):-1;//gotta make sure the patch is ok.
+    notify_property_list_changed();
 }
 
 
-Array SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo> *p_list) const{
-    Array properties;
+void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo> *p_list) const{
+    if(patch==nullptr){
+        return;
+    }
     String hints = "";
     for(int i=0; i<patch->modulation_channels.size();i++){
+        if(i>0){hints+=",";}
         hints+=String(patch->modulation_channels[i]);
-        hints+=",";
     }
     
-    Dictionary modchan;
-    modchan["name"] = "modulation_channels";
-    modchan["type"] = Variant::INT;
-    modchan["hint"] = PROPERTY_HINT_ENUM;
-    modchan["hint_string"] = hints;
-    modchan["usage"] = PROPERTY_USAGE_DEFAULT; 
+    PropertyInfo modchan;
+    modchan.name = "modulation_channels";
+    modchan.type = Variant::INT;
+    modchan.hint = PROPERTY_HINT_ENUM;
+    modchan.hint_string = hints;
+    modchan.usage = PROPERTY_USAGE_DEFAULT; 
 
-    properties.append(modchan);
-    return properties;
+    p_list->push_back(modchan);
 }
 
 bool SynthModulationReceiver::_set(const godot::StringName &p_property, const Variant &p_value){
@@ -336,21 +341,126 @@ bool SynthModulationReceiver::_set(const godot::StringName &p_property, const Va
         int max_index = patch->modulation_channels.size()-1;
         if(incoming_index>=0 && incoming_index<=max_index){
             channelIndex = incoming_index;
+            channelName = patch->modulation_channels[channelIndex];
         }
         else{
             channelIndex = -1;
+            channelName="";
         }
+        return true;
     }
+    return SynthParameterSource::_set(p_property,p_value);
 }
 
 bool SynthModulationReceiver::_get(const godot::StringName &p_name, godot::Variant &r_ret) const{
-    
+    if(String(p_name)=="modulation_channels"){
+        r_ret = channelIndex;
+        return true;
+    }
+    return SynthParameterSource::_get(p_name, r_ret);
 }
+
+
+
+/////////////////////// SYNTH MODULATION CHANNEL STUFF ///////////////////
+void SynthModulationChannel::initialize(SynthPatchLocals *newlocals, SimpleSynthPatch *newPatch){
+    synthLocals = newlocals;
+    patch = newPatch;
+    //Set up local sources
+    for(int i; i<internalSources.size();i++){
+        Ref<SynthParameterSource> src = internalSources[i];
+        if(src.is_valid()){src->initialize(synthLocals,patch);}
+    }
+
+    auto_crossfade_size = AUTO_CROSSFADE_LENGTH*synthLocals->sampleRate; //Initialize pop suppression for automatic mode.
+
+    externalStepSize = int(0.016f*synthLocals->sampleRate); //reset the external step time counter to 60fps, just in case.
+}
+
+void SynthModulationChannel::note_on(){
+    active = true;
+    for(int i; i<internalSources.size();i++){
+        Ref<SynthParameterSource> src = internalSources[i];
+        if(src.is_valid()){src->note_on();}
+    }
+}
+
+void SynthModulationChannel::note_off(){
+    //Iterate through the internal sources and check if they're all off. Only turn off active if they are.
+    bool newActive = false;
+    for(int i; i<internalSources.size();i++){
+        Ref<SynthParameterSource> src = internalSources[i];
+        if(src.is_valid()&&src->active){newActive = true;}
+        }
+    active = newActive;
+}
+
+void SynthModulationChannel::set_name(const godot::StringName newName){
+    name = newName;
+    patch->initialize();
+}
+
+StringName SynthModulationChannel::get_name() const{return name;}
+
+
+void SynthModulationChannel::set_value(const float x){
+    externalPreviousValue = externalValue;
+    externalTargetValue = x;
+    //Update interval and stuff
+    externalStepSize = CLAMP(samplesSinceExternal,1,0.5f*synthLocals->sampleRate);
+    externalInterpCurrentSample = 0;
+    samplesSinceExternal = 0;
+    autoTimeoutRemaining = auto_timeout*synthLocals->sampleRate;
+}
+
+
+float SynthModulationChannel::process(){
+    //INTERNAL STUFF
+    float internalOutput = 0.0f;
+    for(int i;i<internalSources.size();i++){
+        Ref<SynthParameterSource> src = internalSources[i];
+        if(src.is_valid()){
+            internalOutput+=src->process();
+        }
+
+    }
+    
+    if(clamp_output){
+        internalOutput = tanh(internalOutput);
+    }
+    internalValue = internalOutput;
+
+
+    //EXTERNAL STUFF
+    if(externalInterpCurrentSample<externalStepSize){
+        float newTarget = float(externalInterpCurrentSample+1)/float(externalStepSize);
+        externalValue = Math::lerp(externalPreviousValue,externalTargetValue,newTarget);
+        externalInterpCurrentSample++;
+    }
+    else{externalValue = externalTargetValue;}
+
+   samplesSinceExternal++;
+
+
+    //OUTPUT STUFF;
+    if(mode==EXTERNAL){value = externalValue;}
+    else if(mode==BLEND){value = internalValue*internal_blend_mix+externalValue*external_blend_mix;}
+    else if(mode==AUTO){ //Blend between internal and external when activated.
+        if(autoTimeoutRemaining > 0){autoCrossfadeAccumulator = MIN(autoCrossfadeAccumulator+1,auto_crossfade_size);}
+        else {autoCrossfadeAccumulator = MAX (autoCrossfadeAccumulator-1,0);}
+
+        value = Math::lerp(internalValue,externalValue,float(autoCrossfadeAccumulator)/float(auto_crossfade_size));
+        if(autoTimeoutRemaining>0) {autoTimeoutRemaining--;}
+    }
+    return value;
+}
+
 
 ///////////////////// SIMPLE SYNTH PATCH SETTERS/GETTERS //////////////////
 
 void SimpleSynthPatch::set_filter_adsr(const Ref<SynthParameterSource> newADSR){
     filterFrequencyModifier = newADSR;
+    initialize();
 }
 
 Ref<SynthParameterSource> SimpleSynthPatch::get_filter_adsr() const{
@@ -358,6 +468,7 @@ Ref<SynthParameterSource> SimpleSynthPatch::get_filter_adsr() const{
 }
 void SimpleSynthPatch::set_pre_filter_adsr(const Ref<SynthParameterSource> newADSR){
     preFilterAmplitudeModifier = newADSR;
+    initialize();
 }
 
 Ref<SynthParameterSource> SimpleSynthPatch::get_pre_filter_adsr() const{
@@ -365,6 +476,7 @@ Ref<SynthParameterSource> SimpleSynthPatch::get_pre_filter_adsr() const{
 }
 void SimpleSynthPatch::set_post_filter_adsr(const Ref<SynthParameterSource> newADSR){
     postFilterAmplitudeModifier = newADSR;
+    initialize();
 }
 
 Ref<SynthParameterSource> SimpleSynthPatch::get_post_filter_adsr() const{
@@ -373,6 +485,7 @@ Ref<SynthParameterSource> SimpleSynthPatch::get_post_filter_adsr() const{
 
 void SimpleSynthPatch::set_oscillators(const TypedArray<SynthOscillator> newOsc){
     oscillators = newOsc;
+    initialize();
 }
 
 TypedArray<SynthOscillator> SimpleSynthPatch::get_oscillators() const{
@@ -381,10 +494,23 @@ TypedArray<SynthOscillator> SimpleSynthPatch::get_oscillators() const{
 
 void SimpleSynthPatch::set_filters(const TypedArray<SynthFilter> newFilters){
     filters = newFilters;
+    initialize();
 }
 
 TypedArray<SynthFilter> SimpleSynthPatch::get_filters() const{
     return filters;
+}
+
+void SimpleSynthPatch::set_modulation_channels(const TypedArray<StringName> newChannels){
+    if(newChannels!=modulation_channels){
+        modulation_channels = newChannels;
+        if(modulation_channels.size()>synthLocals.modulation.size()){synthLocals.modulation.resize(modulation_channels.size());}
+        initialize();
+    }
+}
+
+TypedArray<StringName> SimpleSynthPatch::get_modulation_channels() const {
+    return modulation_channels;
 }
 
 //////////////SIMPLE SYNTH PATCH INIT///////////////
@@ -392,6 +518,7 @@ SimpleSynthPatch::SimpleSynthPatch(){ // Modulation channel defaults
     modulation_channels.push_back("Pitch Bend");
     modulation_channels.push_back("Mod Wheel");
     modulation_channels.push_back("Velocity");
+    synthLocals.modulation.resize(16);
 }
 
 void SimpleSynthPatch::initialize(){
@@ -405,9 +532,14 @@ void SimpleSynthPatch::initialize(){
         Ref<SynthFilter> filt = v;
         filt->initialize(&synthLocals, this);
     }
+
+    if(!filterFrequencyModifier.is_null()) filterFrequencyModifier->initialize(&synthLocals,this);
+    if(!preFilterAmplitudeModifier.is_null()) preFilterAmplitudeModifier->initialize(&synthLocals,this);
+    if(!postFilterAmplitudeModifier.is_null()) postFilterAmplitudeModifier->initialize(&synthLocals,this);
+
 }
 
-int SimpleSynthPatch::find_modulation_channel(StringName &name){
+int SimpleSynthPatch::find_modulation_channel(const StringName &name)const{
     for (int i = 0; i < modulation_channels.size(); ++i)
     {
         if (modulation_channels[i] == name)
@@ -496,7 +628,9 @@ void SimpleSynthPatch::note_off(){
 
 // SynthParameterSource bindings
 void SynthParameterSource::_bind_methods(){
-    //no methods for godot
+    ClassDB::bind_method(D_METHOD("set_attenuation","attenuation"), &SynthParameterSource::set_attenuation);
+    ClassDB::bind_method(D_METHOD("get_attenuation"), &SynthParameterSource::get_attenuation);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Attenuation",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_attenuation","get_attenuation");
 }
 
 // SynthConstantParameter bindings
@@ -511,6 +645,13 @@ void SynthLFO::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_rate","LFO Rate"), &SynthLFO::set_rate);
     ClassDB::bind_method(D_METHOD("get_rate"), &SynthLFO::get_rate);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"LFO rate (hz)"),"set_rate","get_rate");
+}
+
+//SynthModulationReceiver bindings
+void SynthModulationReceiver::_bind_methods(){
+    // ClassDB::bind_method(D_METHOD("_get_property_list"), &SynthModulationReceiver::_get_property_list);
+    // ClassDB::bind_method(D_METHOD("_set", "property", "value"), &SynthModulationReceiver::_set);
+    // ClassDB::bind_method(D_METHOD("_get", "property"), &SynthModulationReceiver::_get);
 }
 
 // SynthOscillator bindings
@@ -536,7 +677,7 @@ void SynthFrequencyOscillator::_bind_methods(){
 
     ClassDB::bind_method(D_METHOD("set_lfo","LFO"), &SynthFrequencyOscillator::set_lfo);
     ClassDB::bind_method(D_METHOD("get_lfo"),&SynthFrequencyOscillator::get_lfo);
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthLFO"), "set_lfo", "get_lfo");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"), "set_lfo", "get_lfo");
     
     ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"), &SynthFrequencyOscillator::set_lfo_depth);
     ClassDB::bind_method(D_METHOD("get_lfo_depth"), &SynthFrequencyOscillator::get_lfo_depth);
@@ -729,9 +870,9 @@ void SimpleSynthPatch::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_post_filter_adsr","ADSR"), &SimpleSynthPatch::set_post_filter_adsr);
     ClassDB::bind_method(D_METHOD("get_post_filter_adsr"),&SimpleSynthPatch::get_post_filter_adsr);
 
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_filter_adsr", "get_filter_adsr");
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Pre-filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_pre_filter_adsr", "get_pre_filter_adsr");
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Post-filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthADSR"), "set_post_filter_adsr", "get_post_filter_adsr");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"), "set_filter_adsr", "get_filter_adsr");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Pre-filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"), "set_pre_filter_adsr", "get_pre_filter_adsr");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"Post-filter ADSR",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"), "set_post_filter_adsr", "get_post_filter_adsr");
 
     ClassDB::bind_method(D_METHOD("set_oscillators","Oscillator Array"),&SimpleSynthPatch::set_oscillators);
     ClassDB::bind_method(D_METHOD("get_oscillators"),&SimpleSynthPatch::get_oscillators);
@@ -742,6 +883,11 @@ void SimpleSynthPatch::_bind_methods(){
     ClassDB::bind_method(D_METHOD("get_filters"),&SimpleSynthPatch::get_filters);
     
     ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Filters",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthFilter"),"set_filters","get_filters");
+
+    ClassDB::bind_method(D_METHOD("set_modulation_channels","Channel List"),&SimpleSynthPatch::set_modulation_channels);
+    ClassDB::bind_method(D_METHOD("get_modulation_channels"),&SimpleSynthPatch::get_modulation_channels);
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Modulation Chnanel List",PROPERTY_HINT_ARRAY_TYPE,"StringName"),"set_modulation_channels","get_modulation_channels");
+
 
     //Actual functions
     ClassDB::bind_method(D_METHOD("note_on"),&SimpleSynthPatch::note_on);
