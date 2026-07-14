@@ -61,14 +61,50 @@ public:
     virtual float process(){return 1.0f*(1.0-attenuation);}
 };
 
+//Combines multiple parametersources and sums+clamps them and returns the output
+class SynthParameterCombiner : public SynthParameterSource{
+    GDCLASS(SynthParameterCombiner,SynthParameterSource);
+
+public:
+    enum ClampMode{
+        CLAMP_OFF,
+        CLAMP_HARD,
+        CLAMP_SOFT
+    };
+
+protected:
+    static void _bind_methods();
+
+public:
+    godot::TypedArray<SynthParameterSource> parameterSources;
+    ClampMode clampMode = CLAMP_HARD;
+
+    virtual void set_parameter_sources(const godot::TypedArray<SynthParameterSource> &p_sources);
+    virtual godot::TypedArray<SynthParameterSource> get_parameter_sources() const;
+
+    virtual void set_clamp_mode(const int p_mode){clampMode = static_cast<ClampMode>(p_mode);}
+    virtual int get_clamp_mode() const{return static_cast<int>(clampMode);}
+
+    virtual void initialize(SynthPatchLocals *locals, SimpleSynthPatch *patch) override;
+
+    virtual void note_on() override;
+    virtual void note_off() override;
+
+    virtual float process() override;
+};
+
+
+//Just a simple fixed number.
 class SynthConstantParameter: public SynthParameterSource{
     GDCLASS(SynthConstantParameter,SynthParameterSource)
 protected:
     float output = 1.0f;
     static void _bind_methods();
     void set_output(const float x){output = x;}
-    float get_output() const {return output*(1.0-attenuation);}
+    float get_output() const {return output;}
+    float process() override{return output*(1.0-attenuation);}
 };
+
 
 //This is a class to hold ADSR stuff
 class SynthADSR: public SynthParameterSource {
@@ -120,6 +156,7 @@ protected:
     static void _bind_methods();
 };
 
+
 //Extremely simple sine-wave LFO.
 class SynthLFO: public SynthParameterSource{
     GDCLASS(SynthLFO,SynthParameterSource)
@@ -140,8 +177,9 @@ private:
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
 };
 
-//-------------MODULATION CHANNELS-----------------
 
+
+//-------------MODULATION CHANNELS-----------------
 
 class SynthModulationReceiver : public SynthParameterSource{
     GDCLASS(SynthModulationReceiver,SynthParameterSource)

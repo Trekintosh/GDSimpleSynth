@@ -17,6 +17,10 @@ func _process(_delta: float) -> void:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		#SSG.patch.set_pitch_bend(lerpf(SSG.patch.get_pitch_bend(),get_global_mouse_position().y/get_viewport().size.y,_delta*5))
 		#print(get_global_mouse_position().y/get_viewport().size.y)
+		var y = get_global_mouse_position().y/get_viewport().size.y
+		SSG.patch.set_modulation_value_by_name("Whistle_Bend",-y)
+		
+		
 		
 		#quill testing
 		var x = clamp(get_global_mouse_position().x/get_viewport().size.x,0,2)
@@ -24,7 +28,8 @@ func _process(_delta: float) -> void:
 		
 	else:
 		SSG.patch.set_modulation_value_by_name("Whistle_Energy",lerpf(SSG.patch.get_modulation_value_by_name("Whistle_Energy"),0,_delta*5))
-
+		SSG.patch.set_modulation_value_by_name("Whistle_Bend",lerpf(SSG.patch.get_modulation_value_by_name("Whistle_Bend"),0,_delta*5))
+		
 
 
 

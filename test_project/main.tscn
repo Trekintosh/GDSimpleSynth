@@ -11,7 +11,15 @@ mode = 1
 name = &"Whistle_Bend"
 
 [sub_resource type="SynthLFO" id="SynthLFO_g28q7"]
-"LFO rate (hz)" = 10.0
+"LFO rate (hz)" = 5.0
+Attenuation = 0.99
+
+[sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_n8wo2"]
+channel_name = &"Whistle_Bend"
+
+[sub_resource type="SynthParameterCombiner" id="SynthParameterCombiner_j3pel"]
+"Parameter Sources" = Array[SynthParameterSource]([SubResource("SynthLFO_g28q7"), SubResource("SynthModulationReceiver_n8wo2")])
+"Clamp Mode" = 0
 
 [sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_j3pel"]
 channel_name = &"Whistle_Energy"
@@ -20,25 +28,43 @@ channel_name = &"Whistle_Energy"
 feedback = 1.625
 breath = 0.625
 energy_parameter_source = SubResource("SynthModulationReceiver_j3pel")
-"Oscillator Frequency (hz)" = 523.2511
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_g28q7")
-"LFO Frequency span (semitones)" = 0.1
+"Oscillator Frequency (hz)" = 261.62555
+"LFO(Low Frequency Oscillator)" = SubResource("SynthParameterCombiner_j3pel")
+"LFO Frequency span (semitones)" = 12.0
 "Oscillator Note" = 0
-Octave = 5
 "Pitch Bend Range (semitones)" = -4.0
 Gain = 0.5
+
+[sub_resource type="SynthLFO" id="SynthLFO_0xm2m"]
+"LFO rate (hz)" = 25.0
+Attenuation = 0.99
+
+[sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_h2yge"]
+channel_name = &"Whistle_Bend"
+
+[sub_resource type="SynthParameterCombiner" id="SynthParameterCombiner_1bvp3"]
+"Parameter Sources" = Array[SynthParameterSource]([SubResource("SynthLFO_0xm2m"), SubResource("SynthModulationReceiver_h2yge")])
+"Clamp Mode" = 0
 
 [sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_0xm2m"]
 energy_parameter_source = SubResource("SynthModulationReceiver_j3pel")
 "Oscillator Frequency (hz)" = 329.62756
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_g28q7")
-"LFO Frequency span (semitones)" = 0.1
+"LFO(Low Frequency Oscillator)" = SubResource("SynthParameterCombiner_1bvp3")
+"LFO Frequency span (semitones)" = 12.0
 "Oscillator Note" = 4
 "Pitch Bend Range (semitones)" = -4.0
 Gain = 0.5
 
-[sub_resource type="SynthLFO" id="SynthLFO_h2yge"]
-"LFO rate (hz)" = 10.0
+[sub_resource type="SynthLFO" id="SynthLFO_lquwl"]
+"LFO rate (hz)" = 15.0
+Attenuation = 0.99
+
+[sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_7mycd"]
+channel_name = &"Whistle_Bend"
+
+[sub_resource type="SynthParameterCombiner" id="SynthParameterCombiner_272bh"]
+"Parameter Sources" = Array[SynthParameterSource]([SubResource("SynthLFO_lquwl"), SubResource("SynthModulationReceiver_7mycd")])
+"Clamp Mode" = 0
 
 [sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_1bvp3"]
 channel_name = &"Whistle_Energy"
@@ -48,8 +74,8 @@ feedback = 1.625
 breath = 0.625
 energy_parameter_source = SubResource("SynthModulationReceiver_1bvp3")
 "Oscillator Frequency (hz)" = 391.99542
-"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_h2yge")
-"LFO Frequency span (semitones)" = 0.1
+"LFO(Low Frequency Oscillator)" = SubResource("SynthParameterCombiner_272bh")
+"LFO Frequency span (semitones)" = 12.0
 "Oscillator Note" = 7
 "Pitch Bend Range (semitones)" = -4.0
 Gain = 0.5

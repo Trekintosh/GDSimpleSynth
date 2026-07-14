@@ -253,6 +253,69 @@ float SynthParallelFilter::process(float input, float envelopeRatio){
     return output;
 }
 
+
+void SynthParameterCombiner::initialize(SynthPatchLocals *locals, SimpleSynthPatch *patch){
+    SynthParameterSource::initialize(locals,patch);
+    if(patch){
+        for(int i=0;i<parameterSources.size();i++){
+            Ref<SynthParameterSource> src = parameterSources[i];
+            if(src.is_valid()){src->initialize(locals,patch);}
+        }
+    }
+}
+
+void SynthParameterCombiner::note_on(){
+    active = true;
+    for(int i=0;i<parameterSources.size();i++){
+        Ref<SynthParameterSource> src = parameterSources[i];
+        if(src.is_valid()){src->note_on();}
+    }
+}
+
+void SynthParameterCombiner::note_off(){
+    active = false;
+    for(int i=0;i<parameterSources.size();i++){
+        Ref<SynthParameterSource> src = parameterSources[i];
+        if(src.is_valid()){src->note_off();}
+    }
+}
+
+void SynthParameterCombiner::set_parameter_sources(const TypedArray<SynthParameterSource> &p_sources){
+    parameterSources = p_sources;
+    initialize(synthLocals,patch);
+}
+
+TypedArray<SynthParameterSource> SynthParameterCombiner::get_parameter_sources() const{
+    return parameterSources;
+}
+
+float SynthParameterCombiner::process(){
+    float output = 0.0f;
+
+    for(int i=0;i<parameterSources.size();i++){
+        Ref<SynthParameterSource> src = parameterSources[i];
+        if(src.is_valid()){output += src->process();}
+    }
+
+    switch(clampMode){
+        case CLAMP_HARD:
+            output = CLAMP(output,-1.0f,1.0f);
+            break;
+
+        case CLAMP_SOFT:
+            output = tanhf(output);
+            break;
+
+        case CLAMP_OFF:
+        default:
+            break;
+    }
+
+    return output*(1.0f-attenuation);
+}
+
+
+
 //ADSR setters/getters:
 void SynthADSR::set_attack(const float nVal){
     attack = (int)(nVal*sampleRate);
@@ -773,6 +836,30 @@ void SynthParameterSource::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_attenuation","attenuation"), &SynthParameterSource::set_attenuation);
     ClassDB::bind_method(D_METHOD("get_attenuation"), &SynthParameterSource::get_attenuation);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Attenuation",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_attenuation","get_attenuation");
+}
+
+// SynthParameterCombiner bindings
+void SynthParameterCombiner::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_parameter_sources","sources"), &SynthParameterCombiner::set_parameter_sources);
+    ClassDB::bind_method(D_METHOD("get_parameter_sources"), &SynthParameterCombiner::get_parameter_sources);
+
+    ClassDB::bind_method(D_METHOD("set_clamp_mode","mode"), &SynthParameterCombiner::set_clamp_mode);
+    ClassDB::bind_method(D_METHOD("get_clamp_mode"), &SynthParameterCombiner::get_clamp_mode);
+
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Parameter Sources",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthParameterSource"),
+        "set_parameter_sources",
+        "get_parameter_sources"
+    );
+
+    ADD_PROPERTY(
+PropertyInfo(Variant::INT,"Clamp Mode",PROPERTY_HINT_ENUM,"Off,Hard,Soft"),
+        "set_clamp_mode",
+        "get_clamp_mode"
+    );
+
+    // BIND_ENUM_CONSTANT(CLAMP_OFF);
+    // BIND_ENUM_CONSTANT(CLAMP_HARD);
+    // BIND_ENUM_CONSTANT(CLAMP_SOFT);
 }
 
 // SynthConstantParameter bindings
