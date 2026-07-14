@@ -165,9 +165,20 @@ float SynthGroupOscillator::process(){
 
 void SynthFeedbackOscillator::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
     SynthFrequencyOscillator::initialize(l,p_patch);
+    if(energy.is_valid()){energy->initialize(l, p_patch);}
     if(lowPass.is_valid()){lowPass->initialize(l, p_patch);}
     if(dcBlock.is_valid()){dcBlock->initialize(l, p_patch);}
 
+}
+
+void SynthFeedbackOscillator::note_on(){
+    SynthFrequencyOscillator::note_on();
+    if(energy.is_valid()){energy->note_on();}
+}
+
+void SynthFeedbackOscillator::note_off(){
+    SynthFrequencyOscillator::note_off();
+    if(energy.is_valid()){energy->note_off();}
 }
 
 float SynthFeedbackOscillator::read_delay(){
@@ -201,6 +212,7 @@ float SynthFeedbackOscillator::process(){
 
     sample = std::tanh(sample);
 
+    if(energy.is_valid()){lowPass->alpha = energy->process();}
     if(lowPass.is_valid())sample = lowPass->process(sample,1.0f);
     if(dcBlock.is_valid())sample = dcBlock->process(sample,1.0f);
     
@@ -929,9 +941,14 @@ void SynthFeedbackOscillator::_bind_methods(){
     ClassDB::bind_method(D_METHOD("get_breath"),&SynthFeedbackOscillator::get_breath);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"breath"),"set_breath","get_breath");
     
-    ClassDB::bind_method(D_METHOD("set_cutoff","cutoff"),&SynthFeedbackOscillator::set_cutoff);
-    ClassDB::bind_method(D_METHOD("get_cutoff"),&SynthFeedbackOscillator::get_cutoff);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"cutoff",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_cutoff","get_cutoff");
+    ClassDB::bind_method(D_METHOD("set_energy","parameter_resource"),&SynthFeedbackOscillator::set_energy);
+    ClassDB::bind_method(D_METHOD("get_energy"),&SynthFeedbackOscillator::get_energy);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"energy_parameter_source",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"),"set_energy","get_energy");
+
+
+    // ClassDB::bind_method(D_METHOD("set_cutoff","cutoff"),&SynthFeedbackOscillator::set_cutoff);
+    // ClassDB::bind_method(D_METHOD("get_cutoff"),&SynthFeedbackOscillator::get_cutoff);
+    // ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"cutoff",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_cutoff","get_cutoff");
 }
 
 // SynthFilter bindings
@@ -953,7 +970,7 @@ void SynthFrequencyFilter::_bind_methods(){
 
     ClassDB::bind_method(D_METHOD("set_lfo","LFO"),&SynthFrequencyFilter::set_lfo);
     ClassDB::bind_method(D_METHOD("get_lfo"),&SynthFrequencyFilter::get_lfo);
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthLFO"),"set_lfo","get_lfo");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"),"set_lfo","get_lfo");
 
     ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"),&SynthFrequencyFilter::set_lfo_depth);
     ClassDB::bind_method(D_METHOD("get_lfo_depth"),&SynthFrequencyFilter::get_lfo_depth);

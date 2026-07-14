@@ -761,7 +761,8 @@ public:
     float feedback = 1.67f;
     float breath = 0.67f;
     float gain = 0.1f;
-    float cutoff = 0.3f;
+    // float cutoff = 0.3f;
+    godot::Ref<SynthParameterSource> energy;
 
     float process() override;
 
@@ -774,13 +775,20 @@ public:
     void set_gain(const float x){gain = x;}
     float get_gain() const{return gain;}
 
-    void set_cutoff(const float x){
-        cutoff = x;
-        if(lowPass.is_valid()){lowPass->alpha = cutoff;}
-    }
-    float get_cutoff() const {return cutoff;}
+    void set_energy(const godot::Ref<SynthParameterSource> x){energy = x;if(patch)energy->initialize(synthLocals,patch);}
+    godot::Ref<SynthParameterSource> get_energy() const {return energy;}
+    
+
+    // void set_cutoff(const float x){
+    //     cutoff = x;
+    //     if(lowPass.is_valid()){lowPass->alpha = cutoff;}
+    // }
+    // float get_cutoff() const {return cutoff;}
 
     void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
+
+    void note_on() override;
+    void note_off() override;
 
 private:
     float read_delay();

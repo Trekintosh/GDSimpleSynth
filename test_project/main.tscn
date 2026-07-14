@@ -2,28 +2,61 @@
 
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
-[ext_resource type="SynthModulationReceiver" uid="uid://dtb6vwqjolxms" path="res://hytdhydth.tres" id="2_h2yge"]
-
-[sub_resource type="SynthLFO" id="SynthLFO_n8wo2"]
 
 [sub_resource type="SynthModulationChannel" id="SynthModulationChannel_j3pel"]
-name = &"testes"
-internal_sources = Array[SynthParameterSource]([SubResource("SynthLFO_n8wo2")])
+name = &"Whistle_Energy"
+mode = 1
+
+[sub_resource type="SynthModulationChannel" id="SynthModulationChannel_0xm2m"]
+name = &"Whistle_Bend"
+
+[sub_resource type="SynthLFO" id="SynthLFO_g28q7"]
+"LFO rate (hz)" = 10.0
+
+[sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_j3pel"]
+channel_name = &"Whistle_Energy"
 
 [sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_h2yge"]
 feedback = 1.625
 breath = 0.625
-cutoff = 0.14
-"Oscillator Frequency (hz)" = 415.3047
-"LFO(Low Frequency Oscillator)" = ExtResource("2_h2yge")
-"LFO Frequency span (semitones)" = 4.0
-"Oscillator Note" = 8
+energy_parameter_source = SubResource("SynthModulationReceiver_j3pel")
+"Oscillator Frequency (hz)" = 523.2511
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_g28q7")
+"LFO Frequency span (semitones)" = 0.1
+"Oscillator Note" = 0
+Octave = 5
+"Pitch Bend Range (semitones)" = -4.0
+Gain = 0.5
+
+[sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_0xm2m"]
+energy_parameter_source = SubResource("SynthModulationReceiver_j3pel")
+"Oscillator Frequency (hz)" = 329.62756
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_g28q7")
+"LFO Frequency span (semitones)" = 0.1
+"Oscillator Note" = 4
+"Pitch Bend Range (semitones)" = -4.0
+Gain = 0.5
+
+[sub_resource type="SynthLFO" id="SynthLFO_h2yge"]
+"LFO rate (hz)" = 10.0
+
+[sub_resource type="SynthModulationReceiver" id="SynthModulationReceiver_1bvp3"]
+channel_name = &"Whistle_Energy"
+
+[sub_resource type="SynthFeedbackOscillator" id="SynthFeedbackOscillator_lquwl"]
+feedback = 1.625
+breath = 0.625
+energy_parameter_source = SubResource("SynthModulationReceiver_1bvp3")
+"Oscillator Frequency (hz)" = 391.99542
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_h2yge")
+"LFO Frequency span (semitones)" = 0.1
+"Oscillator Note" = 7
 "Pitch Bend Range (semitones)" = -4.0
 Gain = 0.5
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_1bvp3"]
-Oscillators = Array[SynthOscillator]([SubResource("SynthFeedbackOscillator_h2yge")])
-"Modulation Chnanel List" = Array[SynthModulationChannel]([SubResource("SynthModulationChannel_j3pel")])
+Oscillators = Array[SynthOscillator]([SubResource("SynthFeedbackOscillator_h2yge"), SubResource("SynthFeedbackOscillator_0xm2m"), SubResource("SynthFeedbackOscillator_lquwl")])
+"Modulation Chnanel List" = Array[SynthModulationChannel]([SubResource("SynthModulationChannel_j3pel"), SubResource("SynthModulationChannel_0xm2m")])
 
 [sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
 
