@@ -181,30 +181,13 @@ void SynthFeedbackOscillator::note_off(){
     if(energy.is_valid()){energy->note_off();}
 }
 
-float SynthFeedbackOscillator::read_delay(){
-
-    float readPos = (float)writeIndex - delayCurrent;
-
-    while(readPos < 0.0f){
-        readPos += (float)buffer.size();
-    }
-
-    int i0 = (int)readPos;
-    int i1 = (i0 + 1) % buffer.size();
-
-    float frac = readPos - (float)i0;
-
-    return buffer[i0] + (buffer[i1]-buffer[i0])*frac;
-}
 
 float SynthFeedbackOscillator::process(){
 
-    delayCurrent += (delayTarget-delayCurrent)*0.001f;//slight smoothing - avoids notches.
 
-    delayTarget = sampleRate/(frequency*processPitch());
-    delayTarget = CLAMP(delayTarget,1.0f,(float)buffer.size()-2.0f);
+    delay.set_delay(sampleRate/(frequency*processPitch()));
 
-    float delayed = read_delay();
+    float delayed = delay.read();
     float noise = (((float)rand()/RAND_MAX)*2.0f-1.0f)*breath; //Can't get Math::randf_range to work for some reason.
 
     float sample = delayed * feedback;
@@ -215,14 +198,12 @@ float SynthFeedbackOscillator::process(){
     if(energy.is_valid()){lowPass->alpha = energy->process();}
     if(lowPass.is_valid())sample = lowPass->process(sample,1.0f);
     if(dcBlock.is_valid())sample = dcBlock->process(sample,1.0f);
-    
-    buffer[writeIndex] = sample;
 
-    writeIndex++;
-    if(writeIndex>=buffer.size()) writeIndex=0;
+    delay.write(sample);
 
     return sample;
 }
+
 
 float SynthFrequencyFilter::processCutoff(float envelopeRatio){
     float lfoPitch = 0.0f;

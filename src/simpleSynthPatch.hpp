@@ -25,6 +25,8 @@ struct SynthPatchLocals{
     std::vector<float> modulation; //Holds channels that modulate things
 };
 
+
+
 class SynthResource : public godot::Resource{
     GDCLASS(SynthResource, godot::Resource)
 protected:
@@ -791,7 +793,7 @@ protected:
     static void _bind_methods();
 public:
     SynthFeedbackOscillator(){
-        buffer.resize(4096);
+        delay.resize(4096); //Size of the buffer in samples.
 
         lowPass.instantiate();
         dcBlock.instantiate();
@@ -801,6 +803,8 @@ public:
     float gain = 0.1f;
     // float cutoff = 0.3f;
     godot::Ref<SynthParameterSource> energy;
+
+    SynthDelayLine delay;
 
     float process() override;
 
@@ -815,13 +819,6 @@ public:
 
     void set_energy(const godot::Ref<SynthParameterSource> x){energy = x;if(patch)energy->initialize(synthLocals,patch);}
     godot::Ref<SynthParameterSource> get_energy() const {return energy;}
-    
-
-    // void set_cutoff(const float x){
-    //     cutoff = x;
-    //     if(lowPass.is_valid()){lowPass->alpha = cutoff;}
-    // }
-    // float get_cutoff() const {return cutoff;}
 
     void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
 
@@ -829,14 +826,14 @@ public:
     void note_off() override;
 
 private:
-    float read_delay();
+    // float read_delay();
 
-    std::vector<float> buffer;
+    // std::vector<float> buffer;
 
-    int writeIndex = 0;
+    // int writeIndex = 0;
 
-    float delayCurrent = 128.0f;
-    float delayTarget = 128.0f;
+    // float delayCurrent = 128.0f;
+    // float delayTarget = 128.0f;
 
     godot::Ref<SynthBasicerLowPassFilter> lowPass;
     godot::Ref<SynthDCBlockFilter> dcBlock;
