@@ -5,15 +5,17 @@ using namespace godot;
 
 SynthDelayLine::SynthDelayLine(int size){
     buffer.resize(size);
-    clear();
 }
 
 void SynthDelayLine::resize(int size){
-    buffer.resize(size);
+    buffer.assign(size,0.0f);
+    writeIndex = 0;
+    delayCurrent = 1.0f;
+    delayTarget = 1.0f;
 }
 
 void SynthDelayLine::clear(){
-    buffer.clear();
+    buffer.resize(buffer.size());
 }
 
 void SynthDelayLine::set_delay(float samples){

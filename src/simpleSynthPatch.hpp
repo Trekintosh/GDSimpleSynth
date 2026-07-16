@@ -315,6 +315,53 @@ public:
     }
 };
 
+class SynthChorusFilter: public SynthFilter{
+    GDCLASS(SynthChorusFilter, SynthFilter);
+protected:
+    static void _bind_methods();
+
+public:
+    void initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch) override;
+
+    float process(float input, float) override;
+
+    void clear(){delay1.clear();delay2.clear();}
+
+    void set_mod_frequency(const float x){
+        if(modulator1.is_valid())modulator1->set_rate(x);
+        if(modulator2.is_valid())modulator2->set_rate(x*1.1111f);
+    }
+    float get_mod_frequency() const{return modulator1.is_valid()?modulator1->get_rate():0.0f;}
+
+    float delay_ms = 20.0f;
+    float delay_modulation_depth_ms = 5.0f;
+
+    float wet_mix = 0.5;
+    float dry_mix = 0.5;
+
+    float feedback = 0.0f;
+    
+    void set_delay_ms(const float x);
+    float get_delay_ms() const {return delay_ms;}
+    void set_delay_ms_vibrato(const float x);
+    float get_delay_ms_vibrato() const {return delay_modulation_depth_ms;}
+    void set_feedback(const float x){feedback = x;}
+    float get_feedback() const {return feedback;}
+    void set_wet_mix(const float x){wet_mix = x;}
+    float get_wet_mix() const {return wet_mix;}
+    void set_dry_mix(const float x){dry_mix = x;}
+    float get_dry_mix() const {return dry_mix;}
+
+    godot::Ref<SynthLFO> modulator1;
+    godot::Ref<SynthLFO> modulator2;
+
+private:
+    SynthDelayLine delay1 = SynthDelayLine(8192);
+    SynthDelayLine delay2 = SynthDelayLine(8192);
+    float delay_samples = 1000;
+    float delay_modulation_depth_samples = 100;
+
+};
 
 
 class SynthFrequencyFilter: public SynthFilter{
@@ -803,6 +850,7 @@ public:
     float gain = 0.1f;
     // float cutoff = 0.3f;
     godot::Ref<SynthParameterSource> energy;
+    float energy_limit = 1.0f;
 
     SynthDelayLine delay;
 
@@ -816,6 +864,9 @@ public:
 
     void set_gain(const float x){gain = x;}
     float get_gain() const{return gain;}
+
+    void set_energy_limit(const float x){energy_limit = x;}
+    float get_energy_limit() const {return energy_limit;}
 
     void set_energy(const godot::Ref<SynthParameterSource> x){energy = x;if(patch)energy->initialize(synthLocals,patch);}
     godot::Ref<SynthParameterSource> get_energy() const {return energy;}

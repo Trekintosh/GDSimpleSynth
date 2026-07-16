@@ -195,14 +195,59 @@ float SynthFeedbackOscillator::process(){
 
     sample = std::tanh(sample);
 
-    if(energy.is_valid()){lowPass->alpha = energy->process();}
-    if(lowPass.is_valid())sample = lowPass->process(sample,1.0f);
+    if(lowPass.is_valid()){
+        if(energy.is_valid()){lowPass->alpha = Math::remap(energy->process(),0,1,0,energy_limit);}
+        sample = lowPass->process(sample,1.0f);
+    }
     if(dcBlock.is_valid())sample = dcBlock->process(sample,1.0f);
 
     delay.write(sample);
 
     return sample;
 }
+
+void SynthChorusFilter::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
+    SynthFilter::initialize(l,p_patch);
+    if(patch){
+        if(!modulator1.is_valid()){modulator1.instantiate();}
+        if(modulator1.is_valid()){modulator1->initialize(l,p_patch);}
+
+        if(!modulator2.is_valid()){modulator2.instantiate();}
+        if(modulator2.is_valid()){modulator2->initialize(l,p_patch);}
+
+        print_line("Chorus Modulator1: "+String(modulator1->get_class()));
+        print_line("Chorus Modulator2: "+String(modulator2->get_class()));
+
+    }
+}
+
+void SynthChorusFilter::set_delay_ms(float x){
+    if(synthLocals){delay_samples = sampleRate*x*0.001f;}
+    delay_ms = x;
+}
+
+void SynthChorusFilter::set_delay_ms_vibrato(float x){
+    if(synthLocals){delay_modulation_depth_samples = sampleRate*x*0.001f;}
+    delay_modulation_depth_ms = x;
+}
+
+float SynthChorusFilter::process(float input, float envelopeRatio){
+    
+    delay1.set_delay(delay_samples*0.7f+(modulator1->process()*delay_modulation_depth_samples));
+    delay2.set_delay(delay_samples*0.5f+(modulator2->process()*delay_modulation_depth_samples));
+
+    float delayed1 = delay1.read();
+    float delayed2 = delay2.read();
+
+    
+    delay1.write(input+delayed1*feedback);
+    delay2.write(input+delayed2*feedback);
+    
+    float wet = (delayed1+delayed2)*0.5f;
+
+    return input*dry_mix+wet*wet_mix;
+}
+
 
 
 float SynthFrequencyFilter::processCutoff(float envelopeRatio){
@@ -1012,7 +1057,11 @@ void SynthFeedbackOscillator::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_energy","parameter_resource"),&SynthFeedbackOscillator::set_energy);
     ClassDB::bind_method(D_METHOD("get_energy"),&SynthFeedbackOscillator::get_energy);
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"energy_parameter_source",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"),"set_energy","get_energy");
-
+    
+    ClassDB::bind_method(D_METHOD("set_energy_limit","energy_limit"),&SynthFeedbackOscillator::set_energy_limit);
+    ClassDB::bind_method(D_METHOD("get_energy_limit"),&SynthFeedbackOscillator::get_energy_limit);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"energy_limit",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_energy_limit","get_energy_limit");
+    
 
     // ClassDB::bind_method(D_METHOD("set_cutoff","cutoff"),&SynthFeedbackOscillator::set_cutoff);
     // ClassDB::bind_method(D_METHOD("get_cutoff"),&SynthFeedbackOscillator::get_cutoff);
@@ -1024,6 +1073,35 @@ void SynthFilter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_gain","gain"),&SynthFilter::set_gain);
     ClassDB::bind_method(D_METHOD("get_gain"),&SynthFilter::get_gain);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Gain"),"set_gain","get_gain");
+}
+
+//SynthChorusFilter bindings
+void SynthChorusFilter::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_mod_frequency","frequency"), &SynthChorusFilter::set_mod_frequency);
+    ClassDB::bind_method(D_METHOD("get_mod_frequency"), &SynthChorusFilter::get_mod_frequency);
+
+    ClassDB::bind_method(D_METHOD("set_delay_ms","delay_ms"), &SynthChorusFilter::set_delay_ms);
+    ClassDB::bind_method(D_METHOD("get_delay_ms"), &SynthChorusFilter::get_delay_ms);
+
+    ClassDB::bind_method(D_METHOD("set_delay_ms_vibrato","delay_ms_vibrato"), &SynthChorusFilter::set_delay_ms_vibrato);
+    ClassDB::bind_method(D_METHOD("get_delay_ms_vibrato"), &SynthChorusFilter::get_delay_ms_vibrato);
+
+    ClassDB::bind_method(D_METHOD("set_feedback","feedback"), &SynthChorusFilter::set_feedback);
+    ClassDB::bind_method(D_METHOD("get_feedback"), &SynthChorusFilter::get_feedback);
+
+    ClassDB::bind_method(D_METHOD("set_wet_mix","wet_mix"), &SynthChorusFilter::set_wet_mix);
+    ClassDB::bind_method(D_METHOD("get_wet_mix"), &SynthChorusFilter::get_wet_mix);
+
+    ClassDB::bind_method(D_METHOD("set_dry_mix","dry_mix"), &SynthChorusFilter::set_dry_mix);
+    ClassDB::bind_method(D_METHOD("get_dry_mix"), &SynthChorusFilter::get_dry_mix);
+
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Modulation Frequency"), "set_mod_frequency", "get_mod_frequency");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Delay (ms)"), "set_delay_ms", "get_delay_ms");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Modulation Depth (ms)"), "set_delay_ms_vibrato", "get_delay_ms_vibrato");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Wet Mix", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_wet_mix", "get_wet_mix");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Dry Mix", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_dry_mix", "get_dry_mix");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Feedback", PROPERTY_HINT_RANGE, "-1,1,0.001"), "set_feedback", "get_feedback");
+
 }
 
 // SynthFrequencyFilter bindings
