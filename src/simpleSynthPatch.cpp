@@ -876,12 +876,26 @@ void SynthFrequencyOscillator::_bind_methods(){
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Pitch Bend Range (semitones)"),"set_bend_range","get_bend_range");
 }
 
-// SynthPhaseOscillator bindings
-void SynthPhaseOscillator::_bind_methods(){    
-    ClassDB::bind_method(D_METHOD("set_wf","Waveform"), &SynthPhaseOscillator::set_waveform);
-    ClassDB::bind_method(D_METHOD("get_wf"), &SynthPhaseOscillator::get_waveform);
-    ADD_PROPERTY(PropertyInfo(Variant::INT,"Waveform Shape",PROPERTY_HINT_ENUM,"Sine,Square,Triangle,Sawtooth,Pulse"),"set_wf","get_wf");
+//SynthPhaseOscillator bindings
+void SynthPhaseOscillator::_bind_methods(){
+    //no methods for me!
 }
+
+
+// SynthWaveformOscillator bindings
+void SynthWaveformOscillator::_bind_methods(){    
+    ClassDB::bind_method(D_METHOD("set_wf","Waveform"), &SynthWaveformOscillator::set_waveform);
+    ClassDB::bind_method(D_METHOD("get_wf"), &SynthWaveformOscillator::get_waveform);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"Waveform Shape",PROPERTY_HINT_ENUM,"Sine,Square,Triangle,Sawtooth"),"set_wf","get_wf");
+}
+
+// SynthPulseOscillator bindings
+void SynthPulseOscillator::_bind_methods(){    
+    ClassDB::bind_method(D_METHOD("set_pulse","pulse_mode"), &SynthPulseOscillator::set_mode);
+    ClassDB::bind_method(D_METHOD("get_pulse"), &SynthPulseOscillator::get_mode);
+    ADD_PROPERTY(PropertyInfo(Variant::INT,"pulse_mode",PROPERTY_HINT_ENUM,"PWM,Impulse"),"set_pulse","get_pulse");
+}
+
 
 // SynthResonantOscillator bindings
 void SynthResonantOscillator::_bind_methods(){

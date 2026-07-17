@@ -652,35 +652,31 @@ class SynthPhaseOscillator: public SynthFrequencyOscillator{
     GDCLASS(SynthPhaseOscillator,SynthFrequencyOscillator)
 protected:
     static void _bind_methods();
-protected:
-    int duty_cycle = 1;//The duty cycle of the pulse oscillator. TODO - Set up _validate_property to hide this if the oscillator isn't set to pulse.
-    bool has_fired = false;//for pulse oscillator - maybe useful for other weird kinds?
-    bool one_shot = false;// EXPOSE THIS ONE FOR PULSE RESONATOR
-    int one_shot_cooldown = sampleRate; //Cooldown on one-shot.
-
-private:
     float phase = 0.0f;
-    int one_shot_counter = 0;
 public:
-    void updatePhase() {
+    virtual bool updatePhase() {
+        bool has_wrapped = false;
         float pitchRatio = processPitch();
         phase += (frequency*pitchRatio)/sampleRate;
         while(phase>=1.0f){
             phase-=1.0f;
-            if(!one_shot){has_fired = false;}
-            else if(one_shot_counter>=one_shot_cooldown){ //Increments the counter for the one shot cooldown.
-                has_fired = false;
-                one_shot_counter = 0;
-            }
-            else{ one_shot_counter ++;}
+            has_wrapped = true;
         }
+        return has_wrapped;
     };
+};
+
+
+class SynthWaveformOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthWaveformOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
     enum wf{
         SINE,
         SQUARE,
         TRIANGLE,
-        SAWTOOTH,
-        PULSE
+        SAWTOOTH
     };
     wf waveform = SINE;
 
@@ -696,13 +692,8 @@ public:
                 return 4.0f * std::fabs(phase - 0.5f) - 1.0f;
             case SAWTOOTH:
                 return phase * 2.0f-1.0f;
-            case PULSE:
-                if(!has_fired){
-                    has_fired = true;
-                    return 1.0f;
-                }
-                else{return 0.0f;}
         }
+        return 0.0f;
     }
 
     //Setgets
@@ -711,6 +702,30 @@ public:
     
 };
 
+class SynthPulseOscillator: public SynthPhaseOscillator{
+    GDCLASS(SynthPulseOscillator,SynthPhaseOscillator)
+protected:
+    static void _bind_methods();
+public:
+    float duty_cycle = 0.5;
+
+    enum PulseType{
+        PWM,
+        IMPULSE
+    };
+
+    PulseType mode = IMPULSE;
+
+    float process() override{
+        if(!active) return 0.0f;
+        bool wrapped = updatePhase();
+        if(mode==PWM){return phase<duty_cycle? 1.0f : 0.0f;}
+        else return wrapped? 1.0f : 0.0f;
+    }
+    //Setgets
+    void set_mode(const int newForm){mode = static_cast<PulseType>(newForm);;}
+    int get_mode(){return mode;}
+};
 
 
 class SynthGroupOscillator: public SynthOscillator{
