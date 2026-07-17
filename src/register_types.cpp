@@ -31,7 +31,9 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level)
 	GDREGISTER_ABSTRACT_CLASS(SynthOscillator)
 	GDREGISTER_ABSTRACT_CLASS(SynthFrequencyOscillator)
 	GDREGISTER_CLASS(SynthNoiseOscillator)
-	GDREGISTER_CLASS(SynthPhaseOscillator)
+	GDREGISTER_ABSTRACT_CLASS(SynthPhaseOscillator)
+	GDREGISTER_CLASS(SynthWaveformOscillator)
+	GDREGISTER_CLASS(SynthPulseOscillator)
 	GDREGISTER_CLASS(SynthGroupOscillator)
 	GDREGISTER_CLASS(SynthResonantOscillator)
 	GDREGISTER_CLASS(SynthFeedbackOscillator)
@@ -42,9 +44,7 @@ void initialize_gdextension_types(ModuleInitializationLevel p_level)
 	GDREGISTER_CLASS(SynthBasicLowPassFilter)
 	GDREGISTER_CLASS(SynthSVF)
 	GDREGISTER_CLASS(SynthParallelFilter)
-	// GDREGISTER_CLASS(SynthHarmonicParallelFilter) - TODO - REPLACE WITH BETTER ONE
 	GDREGISTER_CLASS(SynthResonantFilter)
-	GDREGISTER_CLASS(SimpleSynthSequencerSettings)
 }
 
 void uninitialize_gdextension_types(ModuleInitializationLevel p_level) {
