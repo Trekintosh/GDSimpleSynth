@@ -21,16 +21,7 @@ Ref<AudioStreamPlayback> SimpleSynthStream::_instantiate_playback() const{
     pb.instantiate();
     pb->set_stream(this);
     pb->patch = myPatch;
-    pb->advanceStep(0);
     return pb;
-}
-
-void SimpleSynthStream::set_sequencer_enabled(bool x){
-    sequencer_enabled  = x;
-}
-
-bool SimpleSynthStream::get_sequencer_enabled() const{
-    return sequencer_enabled;
 }
 
 void SimpleSynthStream::_bind_methods()

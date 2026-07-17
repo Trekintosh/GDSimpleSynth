@@ -5,6 +5,7 @@
 #include "godot_cpp/core/class_db.hpp"
 #include "godot_cpp/core/defs.hpp"
 #include "godot_cpp/core/math.hpp"
+#include "godot_cpp/core/object.hpp"
 #include "godot_cpp/core/print_string.hpp"
 #include "godot_cpp/core/property_info.hpp"
 #include "godot_cpp/variant/string.hpp"
@@ -214,10 +215,6 @@ void SynthChorusFilter::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patc
 
         if(!modulator2.is_valid()){modulator2.instantiate();}
         if(modulator2.is_valid()){modulator2->initialize(l,p_patch);}
-
-        print_line("Chorus Modulator1: "+String(modulator1->get_class()));
-        print_line("Chorus Modulator2: "+String(modulator2->get_class()));
-
     }
 }
 
@@ -232,7 +229,7 @@ void SynthChorusFilter::set_delay_ms_vibrato(float x){
 }
 
 float SynthChorusFilter::process(float input, float envelopeRatio){
-    
+
     delay1.set_delay(delay_samples*0.7f+(modulator1->process()*delay_modulation_depth_samples));
     delay2.set_delay(delay_samples*0.5f+(modulator2->process()*delay_modulation_depth_samples));
 
@@ -854,7 +851,12 @@ void SynthResource::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_active","active"), &SynthResource::set_active);
     ClassDB::bind_method(D_METHOD("get_active"), &SynthResource::get_active);
 
+    ClassDB::bind_method(D_METHOD("set_name","name"),&SynthResource::set_name);
+    ClassDB::bind_method(D_METHOD("get_name"),&SynthResource::get_name);
+
+
     ADD_PROPERTY(PropertyInfo(Variant::BOOL,"active",PROPERTY_HINT_NONE,"",PROPERTY_USAGE_NONE), "set_active", "get_active");
+    ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME,"name"), "set_name","get_name");
 }
 
 // SynthParameterSource bindings

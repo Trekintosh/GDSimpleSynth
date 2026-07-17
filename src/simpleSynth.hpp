@@ -54,18 +54,8 @@ public:
     godot::Ref<SimpleSynthPatch> patch;
     int _mix(godot::AudioFrame *buffer, float rate_scale, int frames) override;
 
-    bool sequencer_enabled = true;
-    int currentSequencerStep = 0;
-    bool sequencerNoteIsOn = false;
-    float currentSequencerPitch = 0.0f;
-    float currentSequencerAmplitude = 1.0f;
-    float currentSequencerDelayPhase = 0.0f;
-
-    float sequencerStepsPerSecond = 0.0f;
-    void advanceStep(int currentStep);
-
     //Mandatory overrides
-    int get_loop_count() const{return total_notes;};
+    int get_loop_count() const{return 0;};
     double _get_playback_position() const override{return 0.0;};
     void _start(double p_from_pos = 0.0) override{
         patch->initialize();
@@ -75,28 +65,5 @@ public:
 
 private:
     int sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
-
-    int step_increment; //How many samples per step, updated when the sequencer steps are updated.
-
-    float phase = 0.0f;
-    int currentFixedSequenceStep = 0;
-
-    float triggerPhase = 0.0f;
-    float releasePhase = 0.0f;
-
-    float targetAmplitudeOffset = 0.0f;
-    float targetFrequencyOffset = 0.0f;
-
-    float currentAmplitudeOffset = 0.0f;
-    float currentFrequencyOffset = 0.0f;
-
-    bool noteHasTriggeredThisStep = false;
-    bool noteHasReleasedThisStep = false;
-
-    int gate_time = 0;
-
-    int total_notes = 0;
-
-    void processSequencer();
 
 };
