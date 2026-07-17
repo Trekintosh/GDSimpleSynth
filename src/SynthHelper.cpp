@@ -3,6 +3,55 @@
 
 using namespace godot;
 
+SynthDelayLine::SynthDelayLine(int size){
+    buffer.resize(size);
+}
+
+void SynthDelayLine::resize(int size){
+    buffer.assign(size,0.0f);
+    writeIndex = 0;
+    delayCurrent = 1.0f;
+    delayTarget = 1.0f;
+}
+
+void SynthDelayLine::clear(){
+    buffer.resize(buffer.size());
+}
+
+void SynthDelayLine::set_delay(float samples){
+    delayTarget = CLAMP(samples,1.0f,(float)buffer.size()-2.0f);
+}
+
+
+float SynthDelayLine::read(){ // Ported from Synthesine. Thanks!
+    float readPos = (float)writeIndex - delayCurrent;
+
+    if(readPos < 0.0f){
+        readPos += (float)buffer.size();
+    }
+
+    int i0 = (int)readPos;
+    int i1 = (i0 + 1) % buffer.size();
+
+    float frac = readPos - (float)i0;
+
+    return buffer[i0] + (buffer[i1]-buffer[i0])*frac;
+}
+
+
+void SynthDelayLine::write(float input){
+
+    delayCurrent += (delayTarget-delayCurrent)*smoothing;//slight smoothing - avoids notches. Smoothing is a tiny float.
+
+
+    buffer[writeIndex] = input;
+    writeIndex++;
+    if(writeIndex >= buffer.size()){writeIndex = 0;}
+
+}
+
+
+
 void SynthHelper::_bind_methods(){
 
     ClassDB::bind_static_method("SynthHelper",D_METHOD("note_to_frequency", "note", "octave"),&SynthHelper::note_to_frequency);

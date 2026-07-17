@@ -165,35 +165,29 @@ float SynthGroupOscillator::process(){
 
 void SynthFeedbackOscillator::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
     SynthFrequencyOscillator::initialize(l,p_patch);
+    if(energy.is_valid()){energy->initialize(l, p_patch);}
     if(lowPass.is_valid()){lowPass->initialize(l, p_patch);}
     if(dcBlock.is_valid()){dcBlock->initialize(l, p_patch);}
 
 }
 
-float SynthFeedbackOscillator::read_delay(){
-
-    float readPos = (float)writeIndex - delayCurrent;
-
-    while(readPos < 0.0f){
-        readPos += (float)buffer.size();
-    }
-
-    int i0 = (int)readPos;
-    int i1 = (i0 + 1) % buffer.size();
-
-    float frac = readPos - (float)i0;
-
-    return buffer[i0] + (buffer[i1]-buffer[i0])*frac;
+void SynthFeedbackOscillator::note_on(){
+    SynthFrequencyOscillator::note_on();
+    if(energy.is_valid()){energy->note_on();}
 }
+
+void SynthFeedbackOscillator::note_off(){
+    SynthFrequencyOscillator::note_off();
+    if(energy.is_valid()){energy->note_off();}
+}
+
 
 float SynthFeedbackOscillator::process(){
 
-    delayCurrent += (delayTarget-delayCurrent)*0.001f;//slight smoothing - avoids notches.
 
-    delayTarget = sampleRate/(frequency*processPitch());
-    delayTarget = CLAMP(delayTarget,1.0f,(float)buffer.size()-2.0f);
+    delay.set_delay(sampleRate/(frequency*processPitch()));
 
-    float delayed = read_delay();
+    float delayed = delay.read();
     float noise = (((float)rand()/RAND_MAX)*2.0f-1.0f)*breath; //Can't get Math::randf_range to work for some reason.
 
     float sample = delayed * feedback;
@@ -201,16 +195,60 @@ float SynthFeedbackOscillator::process(){
 
     sample = std::tanh(sample);
 
-    if(lowPass.is_valid())sample = lowPass->process(sample,1.0f);
+    if(lowPass.is_valid()){
+        if(energy.is_valid()){lowPass->alpha = Math::remap(energy->process(),0,1,0,energy_limit);}
+        sample = lowPass->process(sample,1.0f);
+    }
     if(dcBlock.is_valid())sample = dcBlock->process(sample,1.0f);
-    
-    buffer[writeIndex] = sample;
 
-    writeIndex++;
-    if(writeIndex>=buffer.size()) writeIndex=0;
+    delay.write(sample);
 
     return sample;
 }
+
+void SynthChorusFilter::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
+    SynthFilter::initialize(l,p_patch);
+    if(patch){
+        if(!modulator1.is_valid()){modulator1.instantiate();}
+        if(modulator1.is_valid()){modulator1->initialize(l,p_patch);}
+
+        if(!modulator2.is_valid()){modulator2.instantiate();}
+        if(modulator2.is_valid()){modulator2->initialize(l,p_patch);}
+
+        print_line("Chorus Modulator1: "+String(modulator1->get_class()));
+        print_line("Chorus Modulator2: "+String(modulator2->get_class()));
+
+    }
+}
+
+void SynthChorusFilter::set_delay_ms(float x){
+    if(synthLocals){delay_samples = sampleRate*x*0.001f;}
+    delay_ms = x;
+}
+
+void SynthChorusFilter::set_delay_ms_vibrato(float x){
+    if(synthLocals){delay_modulation_depth_samples = sampleRate*x*0.001f;}
+    delay_modulation_depth_ms = x;
+}
+
+float SynthChorusFilter::process(float input, float envelopeRatio){
+    
+    delay1.set_delay(delay_samples*0.7f+(modulator1->process()*delay_modulation_depth_samples));
+    delay2.set_delay(delay_samples*0.5f+(modulator2->process()*delay_modulation_depth_samples));
+
+    float delayed1 = delay1.read();
+    float delayed2 = delay2.read();
+
+    
+    delay1.write(input+delayed1*feedback);
+    delay2.write(input+delayed2*feedback);
+    
+    float wet = (delayed1+delayed2)*0.5f;
+
+    return input*dry_mix+wet*wet_mix;
+}
+
+
 
 float SynthFrequencyFilter::processCutoff(float envelopeRatio){
     float lfoPitch = 0.0f;
@@ -240,6 +278,69 @@ float SynthParallelFilter::process(float input, float envelopeRatio){
     }
     return output;
 }
+
+
+void SynthParameterCombiner::initialize(SynthPatchLocals *locals, SimpleSynthPatch *patch){
+    SynthParameterSource::initialize(locals,patch);
+    if(patch){
+        for(int i=0;i<parameterSources.size();i++){
+            Ref<SynthParameterSource> src = parameterSources[i];
+            if(src.is_valid()){src->initialize(locals,patch);}
+        }
+    }
+}
+
+void SynthParameterCombiner::note_on(){
+    active = true;
+    for(int i=0;i<parameterSources.size();i++){
+        Ref<SynthParameterSource> src = parameterSources[i];
+        if(src.is_valid()){src->note_on();}
+    }
+}
+
+void SynthParameterCombiner::note_off(){
+    active = false;
+    for(int i=0;i<parameterSources.size();i++){
+        Ref<SynthParameterSource> src = parameterSources[i];
+        if(src.is_valid()){src->note_off();}
+    }
+}
+
+void SynthParameterCombiner::set_parameter_sources(const TypedArray<SynthParameterSource> &p_sources){
+    parameterSources = p_sources;
+    initialize(synthLocals,patch);
+}
+
+TypedArray<SynthParameterSource> SynthParameterCombiner::get_parameter_sources() const{
+    return parameterSources;
+}
+
+float SynthParameterCombiner::process(){
+    float output = 0.0f;
+
+    for(int i=0;i<parameterSources.size();i++){
+        Ref<SynthParameterSource> src = parameterSources[i];
+        if(src.is_valid()){output += src->process();}
+    }
+
+    switch(clampMode){
+        case CLAMP_HARD:
+            output = CLAMP(output,-1.0f,1.0f);
+            break;
+
+        case CLAMP_SOFT:
+            output = tanhf(output);
+            break;
+
+        case CLAMP_OFF:
+        default:
+            break;
+    }
+
+    return output*(1.0f-attenuation);
+}
+
+
 
 //ADSR setters/getters:
 void SynthADSR::set_attack(const float nVal){
@@ -763,6 +864,30 @@ void SynthParameterSource::_bind_methods(){
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Attenuation",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_attenuation","get_attenuation");
 }
 
+// SynthParameterCombiner bindings
+void SynthParameterCombiner::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_parameter_sources","sources"), &SynthParameterCombiner::set_parameter_sources);
+    ClassDB::bind_method(D_METHOD("get_parameter_sources"), &SynthParameterCombiner::get_parameter_sources);
+
+    ClassDB::bind_method(D_METHOD("set_clamp_mode","mode"), &SynthParameterCombiner::set_clamp_mode);
+    ClassDB::bind_method(D_METHOD("get_clamp_mode"), &SynthParameterCombiner::get_clamp_mode);
+
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Parameter Sources",PROPERTY_HINT_ARRAY_TYPE,String::num(Variant::OBJECT)+"/"+String::num(PROPERTY_HINT_RESOURCE_TYPE)+":SynthParameterSource"),
+        "set_parameter_sources",
+        "get_parameter_sources"
+    );
+
+    ADD_PROPERTY(
+PropertyInfo(Variant::INT,"Clamp Mode",PROPERTY_HINT_ENUM,"Off,Hard,Soft"),
+        "set_clamp_mode",
+        "get_clamp_mode"
+    );
+
+    // BIND_ENUM_CONSTANT(CLAMP_OFF);
+    // BIND_ENUM_CONSTANT(CLAMP_HARD);
+    // BIND_ENUM_CONSTANT(CLAMP_SOFT);
+}
+
 // SynthConstantParameter bindings
 void SynthConstantParameter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_output","output"), &SynthConstantParameter::set_output);
@@ -943,9 +1068,18 @@ void SynthFeedbackOscillator::_bind_methods(){
     ClassDB::bind_method(D_METHOD("get_breath"),&SynthFeedbackOscillator::get_breath);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"breath"),"set_breath","get_breath");
     
-    ClassDB::bind_method(D_METHOD("set_cutoff","cutoff"),&SynthFeedbackOscillator::set_cutoff);
-    ClassDB::bind_method(D_METHOD("get_cutoff"),&SynthFeedbackOscillator::get_cutoff);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"cutoff",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_cutoff","get_cutoff");
+    ClassDB::bind_method(D_METHOD("set_energy","parameter_resource"),&SynthFeedbackOscillator::set_energy);
+    ClassDB::bind_method(D_METHOD("get_energy"),&SynthFeedbackOscillator::get_energy);
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"energy_parameter_source",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"),"set_energy","get_energy");
+    
+    ClassDB::bind_method(D_METHOD("set_energy_limit","energy_limit"),&SynthFeedbackOscillator::set_energy_limit);
+    ClassDB::bind_method(D_METHOD("get_energy_limit"),&SynthFeedbackOscillator::get_energy_limit);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"energy_limit",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_energy_limit","get_energy_limit");
+    
+
+    // ClassDB::bind_method(D_METHOD("set_cutoff","cutoff"),&SynthFeedbackOscillator::set_cutoff);
+    // ClassDB::bind_method(D_METHOD("get_cutoff"),&SynthFeedbackOscillator::get_cutoff);
+    // ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"cutoff",PROPERTY_HINT_RANGE,"0,1,0.01"),"set_cutoff","get_cutoff");
 }
 
 // SynthFilter bindings
@@ -953,6 +1087,35 @@ void SynthFilter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_gain","gain"),&SynthFilter::set_gain);
     ClassDB::bind_method(D_METHOD("get_gain"),&SynthFilter::get_gain);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Gain"),"set_gain","get_gain");
+}
+
+//SynthChorusFilter bindings
+void SynthChorusFilter::_bind_methods(){
+    ClassDB::bind_method(D_METHOD("set_mod_frequency","frequency"), &SynthChorusFilter::set_mod_frequency);
+    ClassDB::bind_method(D_METHOD("get_mod_frequency"), &SynthChorusFilter::get_mod_frequency);
+
+    ClassDB::bind_method(D_METHOD("set_delay_ms","delay_ms"), &SynthChorusFilter::set_delay_ms);
+    ClassDB::bind_method(D_METHOD("get_delay_ms"), &SynthChorusFilter::get_delay_ms);
+
+    ClassDB::bind_method(D_METHOD("set_delay_ms_vibrato","delay_ms_vibrato"), &SynthChorusFilter::set_delay_ms_vibrato);
+    ClassDB::bind_method(D_METHOD("get_delay_ms_vibrato"), &SynthChorusFilter::get_delay_ms_vibrato);
+
+    ClassDB::bind_method(D_METHOD("set_feedback","feedback"), &SynthChorusFilter::set_feedback);
+    ClassDB::bind_method(D_METHOD("get_feedback"), &SynthChorusFilter::get_feedback);
+
+    ClassDB::bind_method(D_METHOD("set_wet_mix","wet_mix"), &SynthChorusFilter::set_wet_mix);
+    ClassDB::bind_method(D_METHOD("get_wet_mix"), &SynthChorusFilter::get_wet_mix);
+
+    ClassDB::bind_method(D_METHOD("set_dry_mix","dry_mix"), &SynthChorusFilter::set_dry_mix);
+    ClassDB::bind_method(D_METHOD("get_dry_mix"), &SynthChorusFilter::get_dry_mix);
+
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Modulation Frequency"), "set_mod_frequency", "get_mod_frequency");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Delay (ms)"), "set_delay_ms", "get_delay_ms");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Modulation Depth (ms)"), "set_delay_ms_vibrato", "get_delay_ms_vibrato");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Wet Mix", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_wet_mix", "get_wet_mix");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Dry Mix", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_dry_mix", "get_dry_mix");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Feedback", PROPERTY_HINT_RANGE, "-1,1,0.001"), "set_feedback", "get_feedback");
+
 }
 
 // SynthFrequencyFilter bindings
@@ -967,7 +1130,7 @@ void SynthFrequencyFilter::_bind_methods(){
 
     ClassDB::bind_method(D_METHOD("set_lfo","LFO"),&SynthFrequencyFilter::set_lfo);
     ClassDB::bind_method(D_METHOD("get_lfo"),&SynthFrequencyFilter::get_lfo);
-    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthLFO"),"set_lfo","get_lfo");
+    ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"LFO(Low Frequency Oscillator)",PROPERTY_HINT_RESOURCE_TYPE,"SynthParameterSource"),"set_lfo","get_lfo");
 
     ClassDB::bind_method(D_METHOD("set_lfo_depth","LFO Depth"),&SynthFrequencyFilter::set_lfo_depth);
     ClassDB::bind_method(D_METHOD("get_lfo_depth"),&SynthFrequencyFilter::get_lfo_depth);

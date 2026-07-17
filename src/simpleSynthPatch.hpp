@@ -25,6 +25,8 @@ struct SynthPatchLocals{
     std::vector<float> modulation; //Holds channels that modulate things
 };
 
+
+
 class SynthResource : public godot::Resource{
     GDCLASS(SynthResource, godot::Resource)
 protected:
@@ -61,14 +63,50 @@ public:
     virtual float process(){return 1.0f*(1.0-attenuation);}
 };
 
+//Combines multiple parametersources and sums+clamps them and returns the output
+class SynthParameterCombiner : public SynthParameterSource{
+    GDCLASS(SynthParameterCombiner,SynthParameterSource);
+
+public:
+    enum ClampMode{
+        CLAMP_OFF,
+        CLAMP_HARD,
+        CLAMP_SOFT
+    };
+
+protected:
+    static void _bind_methods();
+
+public:
+    godot::TypedArray<SynthParameterSource> parameterSources;
+    ClampMode clampMode = CLAMP_HARD;
+
+    virtual void set_parameter_sources(const godot::TypedArray<SynthParameterSource> &p_sources);
+    virtual godot::TypedArray<SynthParameterSource> get_parameter_sources() const;
+
+    virtual void set_clamp_mode(const int p_mode){clampMode = static_cast<ClampMode>(p_mode);}
+    virtual int get_clamp_mode() const{return static_cast<int>(clampMode);}
+
+    virtual void initialize(SynthPatchLocals *locals, SimpleSynthPatch *patch) override;
+
+    virtual void note_on() override;
+    virtual void note_off() override;
+
+    virtual float process() override;
+};
+
+
+//Just a simple fixed number.
 class SynthConstantParameter: public SynthParameterSource{
     GDCLASS(SynthConstantParameter,SynthParameterSource)
 protected:
     float output = 1.0f;
     static void _bind_methods();
     void set_output(const float x){output = x;}
-    float get_output() const {return output*(1.0-attenuation);}
+    float get_output() const {return output;}
+    float process() override{return output*(1.0-attenuation);}
 };
+
 
 //This is a class to hold ADSR stuff
 class SynthADSR: public SynthParameterSource {
@@ -120,6 +158,7 @@ protected:
     static void _bind_methods();
 };
 
+
 //Extremely simple sine-wave LFO.
 class SynthLFO: public SynthParameterSource{
     GDCLASS(SynthLFO,SynthParameterSource)
@@ -140,8 +179,9 @@ private:
     float sampleRate = godot::AudioServer::get_singleton()->get_mix_rate();
 };
 
-//-------------MODULATION CHANNELS-----------------
 
+
+//-------------MODULATION CHANNELS-----------------
 
 class SynthModulationReceiver : public SynthParameterSource{
     GDCLASS(SynthModulationReceiver,SynthParameterSource)
@@ -275,6 +315,53 @@ public:
     }
 };
 
+class SynthChorusFilter: public SynthFilter{
+    GDCLASS(SynthChorusFilter, SynthFilter);
+protected:
+    static void _bind_methods();
+
+public:
+    void initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch) override;
+
+    float process(float input, float) override;
+
+    void clear(){delay1.clear();delay2.clear();}
+
+    void set_mod_frequency(const float x){
+        if(modulator1.is_valid())modulator1->set_rate(x);
+        if(modulator2.is_valid())modulator2->set_rate(x*1.1111f);
+    }
+    float get_mod_frequency() const{return modulator1.is_valid()?modulator1->get_rate():0.0f;}
+
+    float delay_ms = 20.0f;
+    float delay_modulation_depth_ms = 5.0f;
+
+    float wet_mix = 0.5;
+    float dry_mix = 0.5;
+
+    float feedback = 0.0f;
+    
+    void set_delay_ms(const float x);
+    float get_delay_ms() const {return delay_ms;}
+    void set_delay_ms_vibrato(const float x);
+    float get_delay_ms_vibrato() const {return delay_modulation_depth_ms;}
+    void set_feedback(const float x){feedback = x;}
+    float get_feedback() const {return feedback;}
+    void set_wet_mix(const float x){wet_mix = x;}
+    float get_wet_mix() const {return wet_mix;}
+    void set_dry_mix(const float x){dry_mix = x;}
+    float get_dry_mix() const {return dry_mix;}
+
+    godot::Ref<SynthLFO> modulator1;
+    godot::Ref<SynthLFO> modulator2;
+
+private:
+    SynthDelayLine delay1 = SynthDelayLine(8192);
+    SynthDelayLine delay2 = SynthDelayLine(8192);
+    float delay_samples = 1000;
+    float delay_modulation_depth_samples = 100;
+
+};
 
 
 class SynthFrequencyFilter: public SynthFilter{
@@ -768,7 +855,7 @@ protected:
     static void _bind_methods();
 public:
     SynthFeedbackOscillator(){
-        buffer.resize(4096);
+        delay.resize(4096); //Size of the buffer in samples.
 
         lowPass.instantiate();
         dcBlock.instantiate();
@@ -776,7 +863,11 @@ public:
     float feedback = 1.67f;
     float breath = 0.67f;
     float gain = 0.1f;
-    float cutoff = 0.3f;
+    // float cutoff = 0.3f;
+    godot::Ref<SynthParameterSource> energy;
+    float energy_limit = 1.0f;
+
+    SynthDelayLine delay;
 
     float process() override;
 
@@ -789,23 +880,26 @@ public:
     void set_gain(const float x){gain = x;}
     float get_gain() const{return gain;}
 
-    void set_cutoff(const float x){
-        cutoff = x;
-        if(lowPass.is_valid()){lowPass->alpha = cutoff;}
-    }
-    float get_cutoff() const {return cutoff;}
+    void set_energy_limit(const float x){energy_limit = x;}
+    float get_energy_limit() const {return energy_limit;}
+
+    void set_energy(const godot::Ref<SynthParameterSource> x){energy = x;if(patch)energy->initialize(synthLocals,patch);}
+    godot::Ref<SynthParameterSource> get_energy() const {return energy;}
 
     void initialize(SynthPatchLocals *locals, SimpleSynthPatch *p_patch) override;
 
+    void note_on() override;
+    void note_off() override;
+
 private:
-    float read_delay();
+    // float read_delay();
 
-    std::vector<float> buffer;
+    // std::vector<float> buffer;
 
-    int writeIndex = 0;
+    // int writeIndex = 0;
 
-    float delayCurrent = 128.0f;
-    float delayTarget = 128.0f;
+    // float delayCurrent = 128.0f;
+    // float delayTarget = 128.0f;
 
     godot::Ref<SynthBasicerLowPassFilter> lowPass;
     godot::Ref<SynthDCBlockFilter> dcBlock;
