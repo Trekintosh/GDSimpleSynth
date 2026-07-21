@@ -42,28 +42,22 @@ public:
 
     int calculate_step_samples();
 
-    int find_next_step();
+    void set_steps_per_minute(float x){steps_per_minute = x;calculate_step_samples();}
 
 private:
-    int samples_per_step = synthLocals? synthLocals->sampleRate/(steps_per_minute/60) : 999999;
+    int samples_per_step = synthLocals? synthLocals->sampleRate/(steps_per_minute/60) : 44100; // Default to 44.1khz
 
     int random_delay_samples = 0;
     
     int random_hold_samples = 0;
 
+    int samples_until_note_on = -1;
+
+    int samples_until_note_off = -1;
+
+    int samples_until_next_step = -1;
+
     int current_step = 0;
 
     int step_count = 1;
-
-    void schedule_step(int ideal, int on, int off);
-
-    struct SequencerEvent{
-        int samples_to_step = -1;
-        int samples_to_on = -1;
-        int samples_to_off = -1;
-
-        SequencerEvent(int p_sts, int p_ston, int p_stoff):samples_to_step(p_sts),samples_to_on(p_ston),samples_to_off(p_stoff){}
-    };
-
-    std::vector<SequencerEvent> eventQueue;
 };
