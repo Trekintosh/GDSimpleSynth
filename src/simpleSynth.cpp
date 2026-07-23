@@ -26,10 +26,6 @@ Ref<AudioStreamPlayback> SimpleSynthStream::_instantiate_playback() const{
 
 void SimpleSynthStream::_bind_methods()
 {
-    ClassDB::bind_method(D_METHOD("set_sequencer_enabled", "enabled"), &SimpleSynthStream::set_sequencer_enabled);
-    ClassDB::bind_method(D_METHOD("get_sequencer_enabled"), &SimpleSynthStream::get_sequencer_enabled);
-    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "Sequencer Enabled"), "set_sequencer_enabled", "get_sequencer_enabled");
-    
     ClassDB::bind_method(D_METHOD("set_patch","New Patch"),&SimpleSynthStream::set_patch);
     ClassDB::bind_method(D_METHOD("get_patch"),&SimpleSynthStream::get_patch);
     ADD_PROPERTY(PropertyInfo(Variant::OBJECT,"patch",PROPERTY_HINT_RESOURCE_TYPE,"SimpleSynthPatch"), "set_patch", "get_patch");

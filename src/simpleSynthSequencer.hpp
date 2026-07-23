@@ -16,7 +16,7 @@ public:
 
 
     void reset();
-    void trigger_step();
+    // void trigger_step(); TODO: Not sure if I even need this? Calling advance already resets the timers
     void advance_step();
 
     void process();
@@ -38,15 +38,27 @@ public:
     bool scale_steps = true;
 
     //Step count is derived from the below.
-    PackedVector3Array step_details; //x = outch offset(semitones), y = delay offset(fraction/seconds, same as random_delay), z = amplitude offset.
+    PackedVector3Array step_details; //x = pitch offset(semitones), y = delay offset(fraction/seconds, same as random_delay), z = amplitude offset.
 
-    int calculate_step_samples();
+    void calculate_step_samples();
 
-    void set_steps_per_minute(float x){steps_per_minute = x;calculate_step_samples();}
+    void set_steps_per_minute(const float x){steps_per_minute = x;calculate_step_samples();}
+    float get_steps_per_minute() const {return steps_per_minute;}
+
+    void set_step_hold_time(const float x){step_hold_time = x;calculate_step_samples();}
+    float get_step_hold_time() const {return step_hold_time;}
+
+    void set_random_hold_time(const float x){step_random_hold_time = x;calculate_step_samples();}
+    float get_random_hold_time() const {return step_random_hold_time;}
+
+    void set_random_delay(const float x){step_random_delay = x;calculate_step_samples();}
+    float get_random_delay() const {return step_random_delay;}
 
 private:
     int samples_per_step = synthLocals? synthLocals->sampleRate/(steps_per_minute/60) : 44100; // Default to 44.1khz
 
+    int step_hold_samples = 0;
+    
     int random_delay_samples = 0;
     
     int random_hold_samples = 0;
