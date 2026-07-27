@@ -6,6 +6,9 @@
 //Clear out stuff
 void SimpleSynthSequencer::reset(){
     current_step = 0;
+    samples_until_next_step = -1;
+    samples_until_note_off = -1;
+    samples_until_note_on = -1;
 }
 
 void SimpleSynthSequencer::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
@@ -44,7 +47,11 @@ void SimpleSynthSequencer::process(){
 }
 
 void SimpleSynthSequencer::calculate_step_samples(){
-    //FILL THIS IDIOT!
+    int tempSampleRate = synthLocals? synthLocals->sampleRate : 44100; //Fallback to 44.1khz
+    samples_per_step = tempSampleRate/(steps_per_minute/60);
+    step_hold_samples = scale_steps? step_hold_time*samples_per_step:step_hold_time*tempSampleRate;
+    random_delay_samples = scale_steps? step_random_delay*samples_per_step : step_random_delay*tempSampleRate;
+    random_hold_samples = scale_steps? step_random_hold_time*samples_per_step : step_random_hold_time * tempSampleRate;
 }
 
 
@@ -69,17 +76,17 @@ void SimpleSynthSequencer::advance_step(){
     //Scale step logic is completely different from non scale steps
     if(scale_steps){
             thisStepOn += randomOnOffset+(newStepDetails.y*samples_per_step);
-            thisStepOff += randomOffOffset+(newStepDetails.y*samples_per_step);
+            thisStepOff += randomOnOffset+randomOffOffset+(newStepDetails.y*samples_per_step);
     }
     else{
         thisStepOn += randomOnOffset+(newStepDetails.y*synthLocals->sampleRate);
-        thisStepOff += randomOffOffset+(newStepDetails.y*synthLocals->sampleRate);
+        thisStepOff += randomOnOffset+randomOffOffset+(newStepDetails.y*synthLocals->sampleRate);
     }
 
     //Apply the new thingies
     samples_until_next_step = auto_step?samples_per_step:-1; //Don't set next step timer unless auto step is on.
     samples_until_note_on = thisStepOn;
-    samples_until_note_off = auto_step?thisStepOff:-1;
+    samples_until_note_off = auto_step||auto_release?thisStepOff:-1;
 
     //Update current step
      if(step_details.size()>0){//For if we do or don't have fancy steps

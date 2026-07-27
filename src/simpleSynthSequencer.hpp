@@ -24,6 +24,8 @@ public:
     void initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch);
     
     bool auto_step = false;
+
+    bool auto_release = false;
     
     float steps_per_minute = 60;
 
