@@ -1,0 +1,40 @@
+[gd_resource type="SimpleSynthPatch" format=3 uid="uid://bijihfx86yb7y"]
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_0xm2m"]
+"Waveform Shape" = 4
+"Oscillator Frequency (hz)" = 3.0
+Gain = 0.1
+
+[sub_resource type="SynthLFO" id="SynthLFO_0xm2m"]
+"LFO rate (hz)" = 440.0
+
+[sub_resource type="SynthResonantOscillator" id="SynthResonantOscillator_0xm2m"]
+"Excitor Oscillator" = SubResource("SynthPhaseOscillator_0xm2m")
+"Decay Time(seconds)" = 3.0
+"Excitation Strength" = 5.0
+"Oscillator Frequency (hz)" = 2093.0044
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_0xm2m")
+"LFO Frequency span (semitones)" = 1.0
+"Oscillator Note" = 0
+Octave = 7
+
+[sub_resource type="SynthPhaseOscillator" id="SynthPhaseOscillator_h2yge"]
+"Waveform Shape" = 4
+"Oscillator Frequency (hz)" = 3.0
+Gain = 0.1
+
+[sub_resource type="SynthLFO" id="SynthLFO_h2yge"]
+"LFO rate (hz)" = 440.0
+
+[sub_resource type="SynthResonantOscillator" id="SynthResonantOscillator_1bvp3"]
+"Excitor Oscillator" = SubResource("SynthPhaseOscillator_h2yge")
+"Decay Time(seconds)" = 3.0
+"Excitation Strength" = 5.0
+"Oscillator Frequency (hz)" = 2793.826
+"LFO(Low Frequency Oscillator)" = SubResource("SynthLFO_h2yge")
+"LFO Frequency span (semitones)" = 1.0
+"Oscillator Note" = 5
+Octave = 7
+
+[resource]
+Oscillators = Array[SynthOscillator]([SubResource("SynthResonantOscillator_0xm2m"), SubResource("SynthResonantOscillator_1bvp3")])
