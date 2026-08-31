@@ -3,16 +3,18 @@
 [ext_resource type="Script" uid="uid://gscsivoywwwo" path="res://main.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://b1h46ekik3ipi" path="res://showSpectrum.gd" id="2_0xm2m"]
 
-[sub_resource type="SynthChorusFilter" id="SynthChorusFilter_j3pel"]
-"Modulation Frequency" = 0.2
-Feedback = 0.99
+[sub_resource type="SynthChorusFilter" id="SynthChorusFilter_1cqc4"]
+"Modulation Frequency" = 1.0
 
-[sub_resource type="SynthModulationChannel" id="SynthModulationChannel_j3pel"]
-name = &"Whistle_Energy"
+[sub_resource type="SynthModulationChannel" id="SynthModulationChannel_h2yge"]
 mode = 1
+synth_resource_name = &"Whistle_Bend"
+resource_name = "Whistle_Bend"
 
-[sub_resource type="SynthModulationChannel" id="SynthModulationChannel_0xm2m"]
-name = &"Whistle_Bend"
+[sub_resource type="SynthModulationChannel" id="SynthModulationChannel_1bvp3"]
+mode = 1
+synth_resource_name = &"Whistle_Energy"
+resource_name = "Whistle_Energy"
 
 [sub_resource type="SynthLFO" id="SynthLFO_g28q7"]
 "LFO rate (hz)" = 5.0
@@ -86,15 +88,11 @@ Gain = 0.5
 
 [sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_1bvp3"]
 Oscillators = Array[SynthOscillator]([SubResource("SynthFeedbackOscillator_h2yge"), SubResource("SynthFeedbackOscillator_0xm2m"), SubResource("SynthFeedbackOscillator_lquwl")])
-Filters = Array[SynthFilter]([SubResource("SynthChorusFilter_j3pel")])
-"Modulation Chnanel List" = Array[SynthModulationChannel]([SubResource("SynthModulationChannel_j3pel"), SubResource("SynthModulationChannel_0xm2m")])
-
-[sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_kvti0"]
+Filters = Array[SynthFilter]([SubResource("SynthChorusFilter_1cqc4")])
+"Modulation Channel List" = Array[SynthModulationChannel]([SubResource("SynthModulationChannel_h2yge"), SubResource("SynthModulationChannel_1bvp3")])
 
 [sub_resource type="SimpleSynthStream" id="SimpleSynthStream_hauwd"]
-"Sequencer Enabled" = false
 patch = SubResource("SimpleSynthPatch_1bvp3")
-"sequencer settings" = SubResource("SimpleSynthSequencerSettings_kvti0")
 
 [node name="Main" type="Node2D" unique_id=87117732]
 script = ExtResource("1_ig7tw")

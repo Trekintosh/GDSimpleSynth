@@ -61,6 +61,7 @@ public:
         patch->initialize();
         return;};
     void _stop() override{return;}
+    bool _is_playing() const override {return true;};
 
 
 private:

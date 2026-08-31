@@ -20,7 +20,7 @@ using namespace godot;
 void SynthResource::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
     synthLocals = l;
     patch = p_patch;
-    if(patch && String(name)!=""){patch->register_name(name,this);}
+    if(patch && String(synth_resource_name)!=""){patch->register_synth_resource_name(synth_resource_name,this);}
     print_line(String(get_class())+" Is initializing. PATCH ID: "+String::num_uint64(uint64_t(patch)));
 }
 
@@ -28,17 +28,17 @@ void SynthResource::note_on(){active = true;}
 
 void SynthResource::note_off(){active = false;}
 
-void SynthResource::set_name(const StringName newName){
-    if(newName==name) return;
-
-    if(patch) patch->unregister_name(name,this);
+void SynthResource::set_synth_resource_name(const StringName newName){
+    if(newName==synth_resource_name) return;
+    print_line("SET NAME: '" + String(newName) + "'");
+    if(patch) patch->unregister_synth_resource_name(synth_resource_name,this);
         
-    name = newName;
+    synth_resource_name = newName;
 
-    if(patch&&newName!=StringName()) patch->register_name(newName,this);
+    if(patch&&newName!=StringName()) patch->register_synth_resource_name(newName,this);
 }
 
-StringName SynthResource::get_name() const {return name;}
+StringName SynthResource::get_synth_resource_name() const {return synth_resource_name;}
 
 // static float peak = 0.0f;
 // int counter = 0;
@@ -435,13 +435,13 @@ void SynthModulationReceiver::set_channel_name(const StringName &n) {
     if(patch){channelIndex = patch->find_modulation_channel(channelName);}
     else{channelIndex = -1;}
 
-    // notify_property_list_changed(); //Update editor.
+    notify_property_list_changed(); //Update editor.
 }
 
 
 void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo> *p_list) const{
     if(patch==nullptr||patch->modulation_channels.size()==0){
-        // print_line("Channel "+String(channelName)+" attempted to scan for modulation channels, but patch is not set or channel list is empty. OBJECT_ID: "+String::num_uint64((uint64_t)this)+" PATCH ID: "+String::num_uint64((uint64_t)patch));
+        print_line("Channel "+String(channelName)+" attempted to scan for modulation channels, but patch is not set or channel list is empty. OBJECT_ID: "+String::num_uint64((uint64_t)this)+" PATCH ID: "+String::num_uint64((uint64_t)patch));
         return;
     }
     // print_line("Attempting to scan for modulation channels");
@@ -450,7 +450,8 @@ void SynthModulationReceiver::_get_property_list(godot::List<godot::PropertyInfo
         if(i>0){hints+=",";}
         Ref<SynthModulationChannel> chan = patch->modulation_channels[i];
         if(chan.is_valid()){
-            hints+=String(chan->name);}
+            // print_line("CHANNEL [" + String::num_int64(i) +"] member='" + String(chan->synth_resource_name) +"' getter='" + String(chan->get_synth_resource_name()) + "'");
+            hints+=String(chan->synth_resource_name);}
         else{hints+="NULL";}
     }
     
@@ -472,7 +473,7 @@ bool SynthModulationReceiver::_set(const godot::StringName &p_property, const Va
         if(patch && incoming_index >= 0 && incoming_index < patch->modulation_channels.size()){
             Ref<SynthModulationChannel> chan = patch->modulation_channels[incoming_index];
             if(chan.is_valid()){
-                channelName = chan->name;
+                channelName = chan->synth_resource_name;
                 channelIndex = incoming_index;
             }
         }
@@ -508,7 +509,7 @@ void SynthModulationChannel::initialize(SynthPatchLocals *newlocals, SimpleSynth
     auto_crossfade_size = AUTO_CROSSFADE_LENGTH*(synthLocals? synthLocals->sampleRate:44100); //Initialize pop suppression for automatic mode.
 
     externalStepSize = int(0.016f*(synthLocals? synthLocals->sampleRate:44100)); //reset the external step time counter to 60fps, just in case.
-    // notify_property_list_changed();
+    notify_property_list_changed();
 }
 
 void SynthModulationChannel::note_on(){
@@ -655,17 +656,17 @@ SimpleSynthPatch::SimpleSynthPatch(){ // Modulation channel defaults
     Ref<SynthModulationChannel> pitch;
     pitch.instantiate();
     pitch->initialize(&synthLocals,this);
-    pitch->set_name("Pitch Bend");
+    pitch->set_synth_resource_name("Pitch Bend");
 
     Ref<SynthModulationChannel> mod;
     mod.instantiate();
     mod->initialize(&synthLocals,this);
-    mod->set_name("Mod Wheel");
+    mod->set_synth_resource_name("Mod Wheel");
 
     Ref<SynthModulationChannel> velocity;
     velocity.instantiate();
     velocity->initialize(&synthLocals,this);
-    velocity->set_name("Velocity");
+    velocity->set_synth_resource_name("Velocity");
 
     modulation_channels.push_back(pitch);
     modulation_channels.push_back(mod);
@@ -708,7 +709,7 @@ int SimpleSynthPatch::find_modulation_channel(const StringName &name)const{
         Ref<SynthModulationChannel> chan = modulation_channels[i];
         if(!chan.is_valid()){continue;}
         // print_line("Comparing modulation channel "+chan->name);
-        if (chan->name == name){
+        if (chan->synth_resource_name == name){
             // print_line("Found channel at index "+String::num_int64(i));
             return i;
         }
@@ -716,12 +717,12 @@ int SimpleSynthPatch::find_modulation_channel(const StringName &name)const{
     return -1;
 }
 
-void SimpleSynthPatch::register_name(StringName n, Ref<SynthResource> ref){ //This function can be used to register any stringname to any synthresource reference. We overwrite any references but warn the user just in case. No errors when overwriting the same reference because who gives a shit?
+void SimpleSynthPatch::register_synth_resource_name(StringName n, Ref<SynthResource> ref){ //This function can be used to register any stringname to any synthresource reference. We overwrite any references but warn the user just in case. No errors when overwriting the same reference because who gives a shit?
     if(namedResources.has(n)&&namedResources[n]!=ref){WARN_PRINT("Warning: Duplicate resource is being registered with name "+n+"! Overwriting previous reference! If the reference was stale, you can ignore this warning.");}
     namedResources[n] = ref;
 }
 
-void SimpleSynthPatch::unregister_name(StringName n, Ref<SynthResource> ref){
+void SimpleSynthPatch::unregister_synth_resource_name(StringName n, Ref<SynthResource> ref){
     if(!namedResources.has(n)) return;
     if(namedResources[n]==ref) namedResources.erase(n);
 }
@@ -851,12 +852,14 @@ void SynthResource::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_active","active"), &SynthResource::set_active);
     ClassDB::bind_method(D_METHOD("get_active"), &SynthResource::get_active);
 
-    ClassDB::bind_method(D_METHOD("set_name","name"),&SynthResource::set_name);
-    ClassDB::bind_method(D_METHOD("get_name"),&SynthResource::get_name);
+    //Removed because this method already exists...
+    ClassDB::bind_method(D_METHOD("set_synth_resource_name","synth_resource_name"),&SynthResource::set_synth_resource_name);
+    ClassDB::bind_method(D_METHOD("get_synth_resource_name"),&SynthResource::get_synth_resource_name);
 
 
     ADD_PROPERTY(PropertyInfo(Variant::BOOL,"active",PROPERTY_HINT_NONE,"",PROPERTY_USAGE_NONE), "set_active", "get_active");
-    ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME,"name"), "set_name","get_name");
+    //See above.
+    ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME,"synth_resource_name"), "set_synth_resource_name","get_synth_resource_name");
 }
 
 // SynthParameterSource bindings
@@ -915,8 +918,8 @@ void SynthModulationReceiver::_bind_methods(){
 }
 
 void SynthModulationChannel::_bind_methods(){
-    ClassDB::bind_method(D_METHOD("set_name", "name"), &SynthModulationChannel::set_name);
-    ClassDB::bind_method(D_METHOD("get_name"), &SynthModulationChannel::get_name);
+    // ClassDB::bind_method(D_METHOD("set_synth_resource_name", "name"), &SynthModulationChannel::set_synth_resource_name);
+    // ClassDB::bind_method(D_METHOD("get_synth_resource_name"), &SynthModulationChannel::get_synth_resource_name);
 
     ClassDB::bind_method(D_METHOD("set_value", "value"), &SynthModulationChannel::set_value);
     ClassDB::bind_method(D_METHOD("get_value"), &SynthModulationChannel::get_value);
@@ -934,9 +937,7 @@ void SynthModulationChannel::_bind_methods(){
     ClassDB::bind_method(D_METHOD("get_mode"), &SynthModulationChannel::get_mode);
 
     // Properties
-    ADD_PROPERTY(
-        PropertyInfo(Variant::STRING_NAME, "name"),
-        "set_name","get_name");
+    // ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "synth_resource_name"),"set_synth_resource_name","get_synth_resource_name");
 
     ADD_PROPERTY(
         PropertyInfo(Variant::BOOL, "clamp_output"),
@@ -1174,7 +1175,7 @@ void SynthParallelFilter::_bind_methods(){
 void SynthResonantFilter::_bind_methods(){
     ClassDB::bind_method(D_METHOD("set_decay","Decay"),&SynthResonantFilter::set_decay);
     ClassDB::bind_method(D_METHOD("get_decay"),&SynthResonantFilter::get_decay);
-    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Resonator Decay (0.9-1.0)"),"set_decay","get_decay");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT,"Resonator Decay",PROPERTY_HINT_RANGE,"0.9,1.0,0.05"),"set_decay","get_decay");
     ClassDB::bind_method(D_METHOD("set_cutoff","Resonance(hz)"), &::SynthResonantFilter::set_cutoff);
     ClassDB::bind_method(D_METHOD("set_excitation_strength", "Excitation Strength"), &SynthResonantFilter::set_excitation_strength);
     ClassDB::bind_method(D_METHOD("get_excitation_strength"), &SynthResonantFilter::get_excitation_strength);
@@ -1245,7 +1246,7 @@ void SimpleSynthPatch::_bind_methods(){
 
     ClassDB::bind_method(D_METHOD("set_modulation_channels","Channel List"),&SimpleSynthPatch::set_modulation_channels);
     ClassDB::bind_method(D_METHOD("get_modulation_channels"),&SimpleSynthPatch::get_modulation_channels);
-    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Modulation Chnanel List",PROPERTY_HINT_ARRAY_TYPE,"SynthModulationChannel"),"set_modulation_channels","get_modulation_channels");
+    ADD_PROPERTY(PropertyInfo(Variant::ARRAY,"Modulation Channel List",PROPERTY_HINT_ARRAY_TYPE,"SynthModulationChannel"),"set_modulation_channels","get_modulation_channels");
 
 
     //Actual functions

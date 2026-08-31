@@ -11,6 +11,7 @@ func _process(_delta: float) -> void:
 	time+=_delta
 	if Input.is_action_just_pressed("ui_accept"):
 		SSG.patch.note_on()
+		
 	elif Input.is_action_just_released("ui_accept"):
 		SSG.patch.note_off()
 	
