@@ -21,7 +21,7 @@ void SynthResource::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_patch){
     synthLocals = l;
     patch = p_patch;
     if(patch && String(synth_resource_name)!=""){patch->register_synth_resource_name(synth_resource_name,this);}
-    print_line(String(get_class())+" Is initializing. PATCH ID: "+String::num_uint64(uint64_t(patch)));
+    // print_line(String(get_class())+" Is initializing. PATCH ID: "+String::num_uint64(uint64_t(patch)));
 }
 
 void SynthResource::note_on(){active = true;}
