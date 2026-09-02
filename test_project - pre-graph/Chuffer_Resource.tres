@@ -1,0 +1,40 @@
+[gd_resource type="SimpleSynthStream" format=3 uid="uid://ywu7w1juiswj"]
+
+[sub_resource type="SynthADSR" id="SynthADSR_4bmhe"]
+Attack = 0.04
+Decay = 0.08
+Sustain = 0.195
+Release = 0.5
+
+[sub_resource type="SynthSVF" id="SynthSVF_gepce"]
+"Q Ratio (Resonance Factor)" = 0.5
+"Pass filter mix ratio (Low Pass, Band Pass, High Pass)" = Vector3(1, 1, 0.3)
+"Minimum Filter Frequency (hz)" = 400.0
+
+[sub_resource type="SynthADSR" id="SynthADSR_u233w"]
+Attack = 0.11
+Decay = 0.08
+Sustain = 0.3
+Release = 0.11
+
+[sub_resource type="SynthNoiseOscillator" id="SynthNoiseOscillator_gh7dn"]
+"Noise Mix (W,P,B)" = Vector3(0.8, 0.19, 0.1)
+
+[sub_resource type="SimpleSynthPatch" id="SimpleSynthPatch_u1av0"]
+"Amplitude ADSR" = SubResource("SynthADSR_4bmhe")
+"Frequency ADSR" = SubResource("SynthADSR_u233w")
+Oscillators = Array[SynthOscillator]([SubResource("SynthNoiseOscillator_gh7dn")])
+Filters = Array[SynthFilter]([SubResource("SynthSVF_gepce")])
+
+[sub_resource type="SimpleSynthSequencerSettings" id="SimpleSynthSequencerSettings_376p1"]
+"Beats Per Minute" = 113
+"Note On Duration" = 1.0
+"Random Pitch Amount - Semitones" = 1.0
+"Random Amplitude" = 0.1
+"Random Note Delay" = 0.05
+"Fixed Step Variation -Pitch, Amplitude, Delay" = PackedVector3Array(10, 0, 0.05, -5, 0.1, 0, 5, -0.1, 0, 0, 0.1, 0)
+
+[resource]
+"Sequencer Enabled" = false
+patch = SubResource("SimpleSynthPatch_u1av0")
+"sequencer settings" = SubResource("SimpleSynthSequencerSettings_376p1")

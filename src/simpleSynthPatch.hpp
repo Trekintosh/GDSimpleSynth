@@ -33,7 +33,7 @@ protected:
     static void _bind_methods();
     
 public:
-    godot::StringName name = "";
+    godot::StringName synth_resource_name = "";
     SynthPatchLocals *synthLocals = nullptr;
     SimpleSynthPatch *patch = nullptr;
     bool active = false;
@@ -42,8 +42,8 @@ public:
     virtual void note_on();
     virtual void note_off();
     virtual void reset(){}
-    virtual void set_name(const godot::StringName newName);
-    virtual godot::StringName get_name() const;
+    virtual void set_synth_resource_name(const godot::StringName newName) ;
+    virtual godot::StringName get_synth_resource_name() const;
     virtual void set_active(const bool x){active = x;}
     virtual bool get_active() const {return active;}
 };
@@ -964,8 +964,8 @@ public:
     bool set_modulation_value(const int index, float val);
     bool set_modulation_value(const godot::StringName name, float val);
 
-    void register_name(const godot::StringName n,godot::Ref<SynthResource> ref);
-    void unregister_name(const godot::StringName n,godot::Ref<SynthResource>);
+    void register_synth_resource_name(const godot::StringName n,godot::Ref<SynthResource> ref);
+    void unregister_synth_resource_name(const godot::StringName n,godot::Ref<SynthResource>);
     
     godot::Ref<SynthResource> find_named_resource(godot::StringName n);
 
