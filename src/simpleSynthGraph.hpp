@@ -5,16 +5,24 @@
 #include "godot_cpp/classes/popup_menu.hpp"
 #include "godot_cpp/templates/hash_map.hpp"
 #include "godot_cpp/variant/variant.hpp"
+#include <cstdint>
 #include <godot_cpp/classes/graph_node.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/variant/string_name.hpp>
-#include <vector>
 #include <godot_cpp/classes/graph_edit.hpp>
 
 using namespace godot;
 
+enum class GraphPortType{
+    PARAMETER,
+    AUDIO
+};
 
+struct SynthGraphPort{
+    GraphPortType type;
+    
+};
 
 class SynthGraphNode : public GraphNode{
     GDCLASS(SynthGraphNode,GraphNode);
@@ -82,6 +90,9 @@ class SynthGraphEditor: public Control{
         void add_node_menu_selected(int32_t id);
 
         void delete_nodes(const Array &nodes);
+
+        void connection_requested(const StringName &from_node, int32_t from_port, const StringName &to_node, int32_t to_port);
+        void disconnection_requested(const StringName &from_node, int32_t from_port, const StringName &to_node, int32_t to_port);
     
     public:
         SynthGraphEditor();
