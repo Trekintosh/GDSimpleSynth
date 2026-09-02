@@ -15,7 +15,7 @@ void SimpleSynthSequencer::initialize(SynthPatchLocals *l, SimpleSynthPatch *p_p
     synthLocals = l;
     patch = p_patch;
 
-    samples_per_step = synthLocals? synthLocals->sampleRate/(steps_per_minute/60) : 44100; //Fallback to 44.1khz
+    calculate_step_samples();//samples_per_step = synthLocals? synthLocals->sampleRate/(steps_per_minute/60) : 44100; //Fallback to 44.1khz
 
     reset();
 }
@@ -34,6 +34,7 @@ void SimpleSynthSequencer::process(){
     if(samples_until_note_on>=0){
         samples_until_note_on--;
         if(samples_until_note_on<=0){
+            samples_until_note_on = -1;
             patch->note_on();
         }
     }
@@ -41,6 +42,7 @@ void SimpleSynthSequencer::process(){
     if(samples_until_note_off>=0){
         samples_until_note_off--;
         if(samples_until_note_off<=0){
+            samples_until_note_off = -1;
             patch->note_off();
         }
     }

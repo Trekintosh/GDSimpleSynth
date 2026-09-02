@@ -732,7 +732,7 @@ Ref<SynthResource> SimpleSynthPatch::find_named_resource(StringName n){
 }
 
 float SimpleSynthPatch::get_modulation_value(int index) const{
-    return index>0&&index<synthLocals.modulation.size() ? synthLocals.modulation[index] : 0.0f;
+    return index>=0&&index<synthLocals.modulation.size() ? synthLocals.modulation[index] : 0.0f;
 }
 float SimpleSynthPatch::get_modulation_value(StringName name) const{
     int index = find_modulation_channel(name);
